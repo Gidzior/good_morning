@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/nodejs:/c/Users/there/AppData/Roaming/npm\")",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Users/there/OneDrive/Documents/Cowork/good_morning/$LOCALAPPDATA/Programs/**)",
+      "Read(//c/Users/there/OneDrive/Documents/Cowork/good_morning/$HOME/AppData/Local/**)",
+      "Bash(where.exe node:*)",
+      "Bash(cmd.exe /c \"where node\")",
+      "Bash(cmd.exe /c \"where npx\")",
+      "Bash(cmd.exe /c \"where python\")",
+      "Bash(cmd.exe /c \"where python3\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(ls /c/Python*/python.exe)",
+      "Read(//c/Users/there/OneDrive/Documents/Cowork/good_morning/$LOCALAPPDATA/Programs/Python/*/**)",
+      "Bash(cmd.exe /c \"winget --version\")",
+      "Bash(powershell -Command \"winget --version\")",
+      "Bash(powershell -Command \"winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements\")",
+      "Bash(powershell -Command \"winget install Git.Git --accept-source-agreements --accept-package-agreements\")",
+      "Bash(git --version)",
+      "Bash(powershell -Command \"& ''C:\\\\Program Files\\\\nodejs\\\\npm.cmd'' --version\")",
+      "Bash(powershell -Command \"& ''C:\\\\Program Files\\\\nodejs\\\\npm.cmd'' install\")",
+      "Bash(git config:*)",
+      "Bash(gh auth:*)"
+    ]
+  }
+}
