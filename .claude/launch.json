@@ -4,8 +4,8 @@
     {
       "name": "dashboard",
       "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
-      "runtimeArgs": ["server.js"],
-      "port": 3000
+      "runtimeArgs": ["start-frontend.js"],
+      "port": 5173
     }
   ]
 }
