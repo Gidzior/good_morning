@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { formatTime } from '../utils';
 import type { WeatherResponse, ForecastItem } from '../types';
 import Loading, { ErrorMsg } from './Loading';
-import Card from './Card';
+import Card from './DashboardCard';
 
 export default function Weather({ tick }: { tick: number }) {
   const [data, setData] = useState<WeatherResponse | null>(null);

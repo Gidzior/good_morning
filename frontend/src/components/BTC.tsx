@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { ZondaResponse } from '../types';
 import Loading, { ErrorMsg } from './Loading';
-import Card from './Card';
+import Card from './DashboardCard';
 
 function fmtPLN(val: number): string {
   return val.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

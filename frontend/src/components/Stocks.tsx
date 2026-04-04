@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import config from '../config';
 import type { StockConfig } from '../types';
 import Loading, { ErrorMsg } from './Loading';
-import Card from './Card';
+import Card from './DashboardCard';
 
 interface StockResult {
   config: StockConfig;

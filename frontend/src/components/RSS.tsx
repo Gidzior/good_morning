@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { timeAgo } from '../utils';
 import type { RSSItem } from '../types';
-import Card from './Card';
+import Card from './DashboardCard';
 import Loading from './Loading';
 
 const AI_FEEDS = [

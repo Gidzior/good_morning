@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import Card from './Card';
+import Card from './DashboardCard';
 
 // Wbudowana baza imienin (polskie)
 const NAMEDAYS: Record<string, string> = {

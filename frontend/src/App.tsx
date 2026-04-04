@@ -22,18 +22,20 @@ export default function App() {
   }, []);
 
   return (
-    <div className="container">
-      <div className="header">
+    <div className="mx-auto max-w-[1400px] p-6 max-sm:p-4">
+      <div className="mb-8 flex items-center justify-between border-b border-border pb-5 max-sm:flex-col max-sm:items-start max-sm:gap-2">
         <div>
-          <h1>{getGreeting()}</h1>
+          <h1 className="bg-gradient-to-br from-accent-indigo-light to-blue-500 bg-clip-text text-[28px] font-bold text-transparent">
+            {getGreeting()}
+          </h1>
         </div>
-        <div className="header-meta">
-          <div className="date">{formatDate(now)}</div>
+        <div className="text-right text-sm text-muted-foreground max-sm:text-left">
+          <div className="text-lg font-medium text-foreground">{formatDate(now)}</div>
           <div>{formatTime(now)}</div>
         </div>
       </div>
 
-      <div className="grid">
+      <div className="grid grid-cols-3 gap-5 max-[1100px]:grid-cols-2 max-sm:grid-cols-1 max-sm:[&_.col-span-2]:col-span-1 max-sm:[&_.col-span-3]:col-span-1 max-[1100px]:[&_.col-span-3]:col-span-2">
         <Weather tick={tick} />
         <Quote tick={tick} />
         <Calendar tick={tick} />
@@ -44,11 +46,16 @@ export default function App() {
         <RSS tick={tick} />
       </div>
 
-      <div className="refresh-bar">
+      <div className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-between border-t border-border bg-card px-6 py-2 text-xs text-muted-foreground">
         <span>
           Ostatnia aktualizacja: {formatTime(lastUpdate)} | Nastepna za: {countdown || '—'}
         </span>
-        <button onClick={refresh}>Odswiez teraz</button>
+        <button
+          onClick={refresh}
+          className="rounded-md bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-accent-indigo-light"
+        >
+          Odswiez teraz
+        </button>
       </div>
     </div>
   );

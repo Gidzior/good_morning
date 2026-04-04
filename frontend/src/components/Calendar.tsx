@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { formatTime, formatDayShort } from '../utils';
 import type { CalendarEvent } from '../types';
 import Loading, { ErrorMsg } from './Loading';
-import Card from './Card';
+import Card from './DashboardCard';
 
 interface DayGroup {
   label: string;
