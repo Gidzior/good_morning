@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { timeAgo } from '../utils';
+import type { RSSItem } from '../types';
 import Card from './Card';
 import Loading from './Loading';
 
@@ -32,7 +33,7 @@ export default function RSS({ tick }: { tick: number }) {
           const data = await res.json();
           return (data.items || [])
             .slice(0, ARTICLES_PER_FEED)
-            .map((item: any) => ({
+            .map((item: RSSItem) => ({
               title: item.title || '',
               link: item.link || '#',
               pubDate: item.pubDate || item.isoDate || '',

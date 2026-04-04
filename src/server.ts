@@ -1,12 +1,24 @@
 import 'dotenv/config';
 import express from 'express';
 import path from 'path';
-import fetch from 'node-fetch';
+import fetch, { Response } from 'node-fetch';
 import RSSParser from 'rss-parser';
 
 const app = express();
 const PORT = 3001;
 const rssParser = new RSSParser();
+
+const json = (r: Response) => r.json();
+
+interface NbpRate {
+  code: string;
+  currency: string;
+  mid: number;
+}
+
+interface NbpTable {
+  rates: NbpRate[];
+}
 
 // Serve built React app
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
@@ -23,12 +35,13 @@ app.get('/api/weather', async (_req, res) => {
 
   try {
     const [current, forecast] = await Promise.all([
-      fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city},${country}&appid=${apiKey}&units=metric&lang=pl`).then((r: any) => r.json()),
-      fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${city},${country}&appid=${apiKey}&units=metric&lang=pl`).then((r: any) => r.json()),
+      fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city},${country}&appid=${apiKey}&units=metric&lang=pl`).then(json),
+      fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${city},${country}&appid=${apiKey}&units=metric&lang=pl`).then(json),
     ]);
     res.json({ current, forecast });
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    res.status(500).json({ error: msg });
   }
 });
 
@@ -38,8 +51,9 @@ app.get('/api/btc', async (_req, res) => {
     const r = await fetch('https://api.zondacrypto.exchange/rest/trading/ticker/BTC-PLN');
     const data = await r.json();
     res.json(data);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    res.status(500).json({ error: msg });
   }
 });
 
@@ -47,17 +61,17 @@ app.get('/api/btc', async (_req, res) => {
 app.get('/api/currencies', async (_req, res) => {
   try {
     const [todayRes, prevRes] = await Promise.all([
-      fetch('https://api.nbp.pl/api/exchangerates/tables/A/?format=json').then((r: any) => r.json()),
-      fetch('https://api.nbp.pl/api/exchangerates/tables/A/last/2/?format=json').then((r: any) => r.json()),
+      fetch('https://api.nbp.pl/api/exchangerates/tables/A/?format=json').then(json) as Promise<NbpTable[]>,
+      fetch('https://api.nbp.pl/api/exchangerates/tables/A/last/2/?format=json').then(json) as Promise<NbpTable[]>,
     ]);
 
-    const todayRates = todayRes[0]?.rates || [];
-    const prevRates = prevRes.length > 1 ? prevRes[0]?.rates || [] : [];
+    const todayRates: NbpRate[] = todayRes[0]?.rates || [];
+    const prevRates: NbpRate[] = prevRes.length > 1 ? prevRes[0]?.rates || [] : [];
 
     const codes = ['USD', 'EUR'];
     const result = codes.map(code => {
-      const today = todayRates.find((r: any) => r.code === code);
-      const prev = prevRates.find((r: any) => r.code === code);
+      const today = todayRates.find(r => r.code === code);
+      const prev = prevRates.find(r => r.code === code);
       return {
         currency: today?.currency || code,
         code,
@@ -67,8 +81,9 @@ app.get('/api/currencies', async (_req, res) => {
     });
 
     res.json(result);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    res.status(500).json({ error: msg });
   }
 });
 
@@ -81,8 +96,9 @@ app.get('/api/stock/:symbol', async (req, res) => {
     });
     const data = await r.json();
     res.json(data);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    res.status(500).json({ error: msg });
   }
 });
 
@@ -92,8 +108,9 @@ app.get('/api/rss', async (req, res) => {
   try {
     const feed = await rssParser.parseURL(url as string);
     res.json(feed);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    res.status(500).json({ error: msg });
   }
 });
 
@@ -112,8 +129,9 @@ app.get('/api/calendar', async (req, res) => {
     const r = await fetch(url);
     const data = await r.json();
     res.json(data);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    res.status(500).json({ error: msg });
   }
 });
 
