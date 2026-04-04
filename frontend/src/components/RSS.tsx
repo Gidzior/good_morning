@@ -1,8 +1,17 @@
 import { useState, useEffect } from 'react';
-import config from '../config';
 import { timeAgo } from '../utils';
 import Card from './Card';
 import Loading from './Loading';
+
+const AI_FEEDS = [
+  { name: 'The Verge AI', url: 'https://www.theverge.com/rss/ai-artificial-intelligence/index.xml' },
+  { name: 'MIT Tech Review', url: 'https://www.technologyreview.com/topic/artificial-intelligence/feed' },
+  { name: 'OpenAI Blog', url: 'https://openai.com/blog/rss.xml' },
+  { name: 'Anthropic', url: 'https://www.anthropic.com/rss.xml' },
+  { name: 'AI News', url: 'https://www.artificialintelligence-news.com/feed/' },
+];
+
+const ARTICLES_PER_FEED = 3;
 
 interface Article {
   title: string;
@@ -16,15 +25,13 @@ export default function RSS({ tick }: { tick: number }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!config.RSS_FEEDS.length) { setLoading(false); return; }
-
     Promise.all(
-      config.RSS_FEEDS.map(async (feed) => {
+      AI_FEEDS.map(async (feed) => {
         try {
           const res = await fetch(`/api/rss?url=${encodeURIComponent(feed.url)}`);
           const data = await res.json();
           return (data.items || [])
-            .slice(0, config.RSS_ARTICLES_PER_FEED)
+            .slice(0, ARTICLES_PER_FEED)
             .map((item: any) => ({
               title: item.title || '',
               link: item.link || '#',
@@ -45,21 +52,23 @@ export default function RSS({ tick }: { tick: number }) {
   }, [tick]);
 
   return (
-    <Card icon="📰" title="Artykuly z RSS" span={3}>
+    <Card icon="🤖" title="AI News" span={3}>
       {loading ? (
-        <Loading text="Ladowanie artykulow..." />
+        <Loading text="Ladowanie wiadomosci AI..." />
       ) : articles.length === 0 ? (
-        <div className="error-msg">Nie udalo sie pobrac artykulow RSS</div>
+        <div className="error-msg">Nie udalo sie pobrac wiadomosci AI</div>
       ) : (
-        articles.map((a, i) => (
-          <div className="article" key={i}>
-            <a href={a.link} target="_blank" rel="noopener noreferrer">{a.title}</a>
-            <div className="meta">
-              <span className="source">{a.source}</span>
-              <span>{a.pubDate ? timeAgo(a.pubDate) : ''}</span>
+        <div className="news-scroll">
+          {articles.map((a, i) => (
+            <div className="article" key={i}>
+              <a href={a.link} target="_blank" rel="noopener noreferrer">{a.title}</a>
+              <div className="meta">
+                <span className="source">{a.source}</span>
+                <span>{a.pubDate ? timeAgo(a.pubDate) : ''}</span>
+              </div>
             </div>
-          </div>
-        ))
+          ))}
+        </div>
       )}
     </Card>
   );
