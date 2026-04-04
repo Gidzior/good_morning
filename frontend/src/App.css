@@ -345,6 +345,15 @@ body {
   .header-meta { text-align: left; }
 }
 
+/* News scroll */
+@media (min-width: 701px) {
+  .news-scroll {
+    max-height: 340px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
