@@ -5,3 +5,4 @@ public/config.js
 config.js
 dist/
 .env
+.claude/settings.local.json
