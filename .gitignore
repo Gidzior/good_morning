@@ -1,7 +1,6 @@
 node_modules/
 frontend/node_modules/
 frontend/dist/
-frontend/src/config.ts
 public/config.js
 config.js
 dist/
