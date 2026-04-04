@@ -35,6 +35,35 @@ app.get('/api/btc', async (_req, res) => {
   }
 });
 
+// --- API: Currencies (NBP) ---
+app.get('/api/currencies', async (_req, res) => {
+  try {
+    const [todayRes, prevRes] = await Promise.all([
+      fetch('https://api.nbp.pl/api/exchangerates/tables/A/?format=json').then((r: any) => r.json()),
+      fetch('https://api.nbp.pl/api/exchangerates/tables/A/last/2/?format=json').then((r: any) => r.json()),
+    ]);
+
+    const todayRates = todayRes[0]?.rates || [];
+    const prevRates = prevRes.length > 1 ? prevRes[0]?.rates || [] : [];
+
+    const codes = ['USD', 'EUR'];
+    const result = codes.map(code => {
+      const today = todayRates.find((r: any) => r.code === code);
+      const prev = prevRates.find((r: any) => r.code === code);
+      return {
+        currency: today?.currency || code,
+        code,
+        mid: today?.mid || 0,
+        prev: prev?.mid || undefined,
+      };
+    });
+
+    res.json(result);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // --- API: Stocks (Yahoo Finance) ---
 app.get('/api/stock/:symbol', async (req, res) => {
   try {
