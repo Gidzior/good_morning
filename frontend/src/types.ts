@@ -81,13 +81,6 @@ export interface NamedayResponse {
 }
 
 export interface Config {
-  WEATHER_API_KEY: string;
-  WEATHER_CITY: string;
-  WEATHER_COUNTRY: string;
-  GOOGLE_CALENDAR_API_KEY: string;
-  GOOGLE_CALENDAR_ID: string;
-  RSS_FEEDS: RSSFeedConfig[];
-  RSS_ARTICLES_PER_FEED: number;
   STOCKS: StockConfig[];
   REFRESH_INTERVAL: number;
 }

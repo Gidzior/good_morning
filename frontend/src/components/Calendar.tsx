@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import config from '../config';
 import { formatTime, formatDayShort } from '../utils';
 import type { CalendarEvent } from '../types';
 import Loading, { ErrorMsg } from './Loading';
@@ -14,20 +13,25 @@ export default function Calendar({ tick }: { tick: number }) {
   const [days, setDays] = useState<DayGroup[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-
-  const noKey = !config.GOOGLE_CALENDAR_API_KEY || config.GOOGLE_CALENDAR_API_KEY === 'TWOJ_KLUCZ_GOOGLE_CALENDAR';
+  const [noKey, setNoKey] = useState(false);
 
   useEffect(() => {
-    if (noKey) { setLoading(false); return; }
-
     const now = new Date();
     const end = new Date(now);
     end.setDate(end.getDate() + 3);
 
-    fetch(`/api/calendar?apiKey=${config.GOOGLE_CALENDAR_API_KEY}&calendarId=${encodeURIComponent(config.GOOGLE_CALENDAR_ID)}&timeMin=${now.toISOString()}&timeMax=${end.toISOString()}`)
+    fetch(`/api/calendar?timeMin=${now.toISOString()}&timeMax=${end.toISOString()}`)
       .then(r => r.json())
       .then(data => {
-        if (data.error) throw new Error(data.error.message);
+        if (data.error) {
+          if (data.error.message?.includes('.env')) {
+            setNoKey(true);
+          } else {
+            throw new Error(data.error.message);
+          }
+          setLoading(false);
+          return;
+        }
 
         const events: CalendarEvent[] = data.items || [];
         const grouped: DayGroup[] = [];
@@ -48,13 +52,13 @@ export default function Calendar({ tick }: { tick: number }) {
         setLoading(false);
       })
       .catch(e => { setError(e.message); setLoading(false); });
-  }, [tick, noKey]);
+  }, [tick]);
 
   return (
     <Card icon="📆" title="Kalendarz — najblizsze 3 dni" span={2}>
       {noKey ? (
         <div className="cal-empty">
-          Uzupelnij GOOGLE_CALENDAR_API_KEY i GOOGLE_CALENDAR_ID w config.ts
+          Uzupelnij GOOGLE_CALENDAR_API_KEY i GOOGLE_CALENDAR_ID w pliku .env
         </div>
       ) : error ? (
         <ErrorMsg message={`Blad kalendarza: ${error}`} />

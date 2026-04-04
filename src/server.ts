@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import fetch from 'node-fetch';
@@ -10,9 +11,16 @@ const rssParser = new RSSParser();
 // Serve built React app
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
 
-// --- API: Weather ---
-app.get('/api/weather', async (req, res) => {
-  const { apiKey, city, country } = req.query;
+// --- API: Weather (keys from .env) ---
+app.get('/api/weather', async (_req, res) => {
+  const apiKey = process.env.WEATHER_API_KEY;
+  const city = process.env.WEATHER_CITY || 'Warszawa';
+  const country = process.env.WEATHER_COUNTRY || 'PL';
+
+  if (!apiKey || apiKey === 'TWOJ_KLUCZ_OPENWEATHERMAP') {
+    return res.json({ current: { cod: 401, message: 'Brak klucza API pogody w .env' }, forecast: { list: [] } });
+  }
+
   try {
     const [current, forecast] = await Promise.all([
       fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city},${country}&appid=${apiKey}&units=metric&lang=pl`).then((r: any) => r.json()),
@@ -89,35 +97,18 @@ app.get('/api/rss', async (req, res) => {
   }
 });
 
-// --- API: Nameday ---
-app.get('/api/nameday', async (_req, res) => {
-  try {
-    const now = new Date();
-    const day = now.getDate();
-    const month = now.getMonth() + 1;
-    const r = await fetch(`https://api.abalin.net/getnames?country=pl&day=${day}&month=${month}`);
-    const data = await r.json();
-    res.json(data);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// --- API: News PL ---
-app.get('/api/news-pl', async (_req, res) => {
-  try {
-    const feed = await rssParser.parseURL('https://wiadomosci.gazeta.pl/pub/rss/wiadomosci.xml');
-    res.json(feed);
-  } catch (e: any) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// --- API: Google Calendar ---
+// --- API: Google Calendar (keys from .env) ---
 app.get('/api/calendar', async (req, res) => {
-  const { apiKey, calendarId, timeMin, timeMax } = req.query;
+  const apiKey = process.env.GOOGLE_CALENDAR_API_KEY;
+  const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
+  const { timeMin, timeMax } = req.query;
+
+  if (!apiKey || apiKey === 'TWOJ_KLUCZ_GOOGLE_CALENDAR') {
+    return res.json({ error: { message: 'Brak klucza API kalendarza w .env' } });
+  }
+
   try {
-    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId as string)}/events?key=${apiKey}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=30`;
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?key=${apiKey}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=30`;
     const r = await fetch(url);
     const data = await r.json();
     res.json(data);

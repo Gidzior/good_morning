@@ -5,3 +5,4 @@ frontend/src/config.ts
 public/config.js
 config.js
 dist/
+.env

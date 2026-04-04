@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import config from '../config';
 import { formatTime } from '../utils';
 import type { WeatherResponse, ForecastItem } from '../types';
 import Loading, { ErrorMsg } from './Loading';
@@ -10,15 +9,13 @@ export default function Weather({ tick }: { tick: number }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!config.WEATHER_API_KEY || config.WEATHER_API_KEY === 'TWOJ_KLUCZ_OPENWEATHERMAP') return;
-    const url = `/api/weather?apiKey=${config.WEATHER_API_KEY}&city=${config.WEATHER_CITY}&country=${config.WEATHER_COUNTRY}`;
-    fetch(url)
+    fetch('/api/weather')
       .then(r => r.json())
       .then(d => { setData(d); setError(''); })
       .catch(e => setError(e.message));
   }, [tick]);
 
-  const noKey = !config.WEATHER_API_KEY || config.WEATHER_API_KEY === 'TWOJ_KLUCZ_OPENWEATHERMAP';
+  const noKey = data?.current?.cod === 401;
 
   // Today's forecast items
   const todayStr = new Date().toDateString();
@@ -40,7 +37,7 @@ export default function Weather({ tick }: { tick: number }) {
             <div>
               <div className="weather-temp">--°C</div>
               <div className="weather-desc">
-                Uzupelnij WEATHER_API_KEY w config.ts
+                Uzupelnij WEATHER_API_KEY w pliku .env
               </div>
             </div>
           </div>
