@@ -20,6 +20,25 @@ interface NbpTable {
   rates: NbpRate[];
 }
 
+// --- Simple in-memory cache with TTL ---
+interface CacheEntry<T> {
+  data: T;
+  expires: number;
+}
+
+const cache = new Map<string, CacheEntry<unknown>>();
+
+function cached<T>(key: string, ttlMs: number, fetcher: () => Promise<T>): Promise<T> {
+  const entry = cache.get(key) as CacheEntry<T> | undefined;
+  if (entry && Date.now() < entry.expires) return Promise.resolve(entry.data);
+  return fetcher().then(data => {
+    cache.set(key, { data, expires: Date.now() + ttlMs });
+    return data;
+  });
+}
+
+const THIRTY_MIN = 30 * 60 * 1000;
+
 // Serve built React app
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
 
@@ -80,6 +99,53 @@ app.get('/api/currencies', async (_req, res) => {
       };
     });
 
+    res.json(result);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    res.status(500).json({ error: msg });
+  }
+});
+
+// --- API: Historical currency rates (NBP, cached 30min) ---
+app.get('/api/currencies/history/:code', async (req, res) => {
+  const { code } = req.params;
+  const days = Math.min(Number(req.query.days) || 30, 365);
+  const cacheKey = `nbp-${code}-${days}`;
+
+  try {
+    const points = await cached(cacheKey, THIRTY_MIN, async () => {
+      const url = `https://api.nbp.pl/api/exchangerates/rates/A/${code}/last/${days}/?format=json`;
+      const data = await fetch(url).then(json) as { rates: { effectiveDate: string; mid: number }[] };
+      return (data.rates || []).map(r => ({
+        date: r.effectiveDate,
+        value: r.mid,
+      }));
+    });
+    res.json(points);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    res.status(500).json({ error: msg });
+  }
+});
+
+// --- API: Historical BTC/PLN (CoinGecko, cached 30min) ---
+app.get('/api/btc/history', async (_req, res) => {
+  const days = Math.min(Number(_req.query.days) || 30, 365);
+  const cacheKey = `btc-history-${days}`;
+
+  try {
+    const result = await cached(cacheKey, THIRTY_MIN, async () => {
+      const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=pln&days=${days}`;
+      const data = await fetch(url).then(json) as { prices: [number, number][] };
+      const points = (data.prices || []).map(([ts, price]) => ({
+        date: new Date(ts).toISOString().slice(0, 10),
+        value: Math.round(price * 100) / 100,
+      }));
+      // Deduplicate by date (keep last entry per day)
+      const byDate = new Map<string, number>();
+      for (const p of points) byDate.set(p.date, p.value);
+      return Array.from(byDate, ([date, value]) => ({ date, value }));
+    });
     res.json(result);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Unknown error';

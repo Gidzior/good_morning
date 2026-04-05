@@ -10,6 +10,7 @@
   font-size: 48px;
   font-weight: 700;
   line-height: 1;
+  color: var(--foreground);
 }
 
 .weather-desc {
@@ -43,6 +44,7 @@
 .weather-detail .value {
   font-size: 18px;
   font-weight: 600;
+  color: var(--foreground);
   margin-top: 2px;
 }
 
@@ -58,7 +60,7 @@
 .forecast-row:last-child { border-bottom: none; }
 .forecast-row .time { width: 50px; font-size: 13px; color: var(--muted-foreground); font-weight: 500; }
 .forecast-row img { width: 32px; height: 32px; }
-.forecast-row .temp { font-weight: 600; width: 50px; }
+.forecast-row .temp { font-weight: 600; width: 50px; color: var(--foreground); }
 .forecast-row .desc { color: var(--muted-foreground); font-size: 13px; flex: 1; }
 
 /* Calendar */
@@ -68,7 +70,7 @@
 .cal-day-header {
   font-size: 13px;
   font-weight: 600;
-  color: var(--accent-indigo-light);
+  color: var(--primary);
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -86,7 +88,7 @@
 }
 
 .cal-event .time { font-size: 13px; color: var(--muted-foreground); min-width: 90px; font-weight: 500; }
-.cal-event .title { font-size: 14px; font-weight: 500; }
+.cal-event .title { font-size: 14px; font-weight: 500; color: var(--foreground); }
 .cal-empty { color: var(--muted-foreground); font-size: 13px; font-style: italic; padding: 8px 0; }
 
 /* Articles */
@@ -107,7 +109,7 @@
   transition: color 0.2s;
 }
 
-.article a:hover { color: var(--accent-indigo-light); }
+.article a:hover { color: var(--primary); }
 
 .article .meta {
   font-size: 12px;
@@ -116,7 +118,7 @@
   gap: 12px;
 }
 
-.article .source { color: var(--accent-indigo-light); font-weight: 500; }
+.article .source { color: var(--primary); font-weight: 500; }
 
 /* Ticker */
 .ticker {
@@ -129,10 +131,10 @@
 
 .ticker:last-child { border-bottom: none; }
 .ticker-name { display: flex; align-items: center; gap: 10px; }
-.ticker-name .symbol { font-weight: 600; font-size: 15px; }
+.ticker-name .symbol { font-weight: 600; font-size: 15px; color: var(--foreground); }
 .ticker-name .full-name { font-size: 13px; color: var(--muted-foreground); }
 .ticker-price { text-align: right; }
-.ticker-price .price { font-weight: 600; font-size: 16px; }
+.ticker-price .price { font-weight: 600; font-size: 16px; color: var(--foreground); }
 .ticker-price .change { font-size: 13px; font-weight: 500; }
 .change.up { color: var(--color-green); }
 .change.down { color: var(--color-red); }
@@ -143,13 +145,14 @@
   font-size: 16px;
   font-style: italic;
   line-height: 1.6;
+  color: var(--foreground);
   margin-bottom: 8px;
 }
 
 .quote-author { font-size: 13px; color: var(--muted-foreground); text-align: right; }
 
 /* Nameday */
-.nameday-text { font-size: 15px; }
+.nameday-text { font-size: 15px; color: var(--foreground); }
 
 /* Loading */
 .loading {
@@ -176,7 +179,7 @@
   color: var(--color-red);
   font-size: 13px;
   padding: 8px;
-  background: rgba(239, 68, 68, 0.1);
+  background: rgba(239, 77, 86, 0.08);
   border-radius: 6px;
 }
 
@@ -193,3 +196,4 @@
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--background); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }

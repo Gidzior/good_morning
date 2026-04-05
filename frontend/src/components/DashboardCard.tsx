@@ -13,16 +13,16 @@ export default function DashboardCard({ icon, title, span, children }: Dashboard
   return (
     <Card
       className={cn(
-        'border-border bg-card hover:border-accent-indigo transition-colors',
+        'border-border bg-card shadow-sm hover:shadow-md transition-shadow',
         span === 2 && 'col-span-2',
         span === 3 && 'col-span-3',
       )}
     >
       <CardHeader className="flex-row items-center gap-2.5 border-b border-border pb-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-surface-hover text-xl">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-xl">
           {icon}
         </div>
-        <CardTitle className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <CardTitle className="text-sm font-semibold text-foreground">
           {title}
         </CardTitle>
       </CardHeader>
