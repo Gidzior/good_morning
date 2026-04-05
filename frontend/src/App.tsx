@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import config from './config';
-import { formatDate, formatTime, getGreeting } from './utils';
 import { useRefresh } from './hooks/useRefresh';
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import AppSidebar from './components/AppSidebar';
+import DashboardHeader from './components/DashboardHeader';
 import Weather from './components/Weather';
 import Calendar from './components/Calendar';
 import BTC from './components/BTC';
@@ -22,42 +25,25 @@ export default function App() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-[1400px] p-6 max-sm:p-4">
-      <div className="mb-6 flex items-center justify-between rounded-xl bg-card px-6 py-4 shadow-sm max-sm:flex-col max-sm:items-start max-sm:gap-2">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">
-            {getGreeting()} <span className="text-primary">👋</span>
-          </h1>
-          <p className="text-sm text-muted-foreground">Twoj poranny dashboard briefingowy</p>
-        </div>
-        <div className="text-right text-sm text-muted-foreground max-sm:text-left">
-          <div className="text-lg font-semibold text-foreground">{formatDate(now)}</div>
-          <div>{formatTime(now)}</div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-5 max-[1100px]:grid-cols-2 max-sm:grid-cols-1 max-sm:[&_.col-span-2]:col-span-1 max-sm:[&_.col-span-3]:col-span-1 max-[1100px]:[&_.col-span-3]:col-span-2">
-        <Weather tick={tick} />
-        <Quote tick={tick} />
-        <Calendar tick={tick} />
-        <Nameday tick={tick} />
-        <BTC tick={tick} />
-        <Stocks tick={tick} />
-        <NewsPL tick={tick} />
-        <RSS tick={tick} />
-      </div>
-
-      <div className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-between border-t border-border bg-card px-6 py-2.5 text-xs text-muted-foreground shadow-sm">
-        <span>
-          Ostatnia aktualizacja: {formatTime(lastUpdate)} | Nastepna za: {countdown || '—'}
-        </span>
-        <button
-          onClick={refresh}
-          className="rounded-md bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-accent-indigo-light"
-        >
-          Odswiez teraz
-        </button>
-      </div>
-    </div>
+    <TooltipProvider>
+      <SidebarProvider>
+        <AppSidebar lastUpdate={lastUpdate} countdown={countdown} onRefresh={refresh} />
+        <SidebarInset>
+          <DashboardHeader now={now} />
+          <div className="p-6 max-sm:p-4">
+            <div className="grid grid-cols-3 gap-5 max-[1100px]:grid-cols-2 max-sm:grid-cols-1 max-sm:[&_.col-span-2]:col-span-1 max-sm:[&_.col-span-3]:col-span-1 max-[1100px]:[&_.col-span-3]:col-span-2">
+              <Weather tick={tick} />
+              <Quote tick={tick} />
+              <Calendar tick={tick} />
+              <Nameday tick={tick} />
+              <BTC tick={tick} />
+              <Stocks tick={tick} />
+              <NewsPL tick={tick} />
+              <RSS tick={tick} />
+            </div>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    </TooltipProvider>
   );
 }

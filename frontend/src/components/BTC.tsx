@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import type { ChartConfig } from '@/components/ui/chart';
 import type { ZondaResponse } from '../types';
 import Loading, { ErrorMsg } from './Loading';
 import Card from './DashboardCard';
@@ -106,10 +108,17 @@ export default function BTC({ tick }: { tick: number }) {
   // Chart date formatter
   const fmtDate = (d: string) => {
     const date = new Date(d);
-    if (period <= 7) return date.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' });
     if (period <= 90) return date.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' });
     return date.toLocaleDateString('pl-PL', { month: 'short', year: '2-digit' });
   };
+
+  // shadcn chart config
+  const chartConfig = {
+    value: {
+      label: activeTicker?.label ?? 'Kurs',
+      color: 'var(--chart-1)',
+    },
+  } satisfies ChartConfig;
 
   return (
     <Card icon="💱" title="Kursy walut i BTC" span={2}>
@@ -156,18 +165,18 @@ export default function BTC({ tick }: { tick: number }) {
               Brak danych dla wybranego okresu
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ChartContainer config={chartConfig} className="h-full w-full">
               <AreaChart data={chart} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>
                 <defs>
                   <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#0b51b7" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#0b51b7" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor="var(--color-value)" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="var(--color-value)" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <XAxis
                   dataKey="date"
                   tickFormatter={fmtDate}
-                  tick={{ fontSize: 11, fill: '#7081b9' }}
+                  tick={{ fontSize: 11 }}
                   axisLine={false}
                   tickLine={false}
                   interval="equidistantPreserveStart"
@@ -175,34 +184,41 @@ export default function BTC({ tick }: { tick: number }) {
                 />
                 <YAxis
                   domain={['auto', 'auto']}
-                  tick={{ fontSize: 11, fill: '#7081b9' }}
+                  tick={{ fontSize: 11 }}
                   axisLine={false}
                   tickLine={false}
                   width={active === 'BTC' ? 70 : 45}
                   tickFormatter={(v: number) => active === 'BTC' ? `${(v / 1000).toFixed(0)}k` : v.toFixed(2)}
                 />
-                <Tooltip
-                  contentStyle={{
-                    background: '#fff',
-                    border: '1px solid #eceff5',
-                    borderRadius: 8,
-                    fontSize: 12,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                  }}
-                  formatter={(value: number) => [fmtPLN(value) + ' zl', activeTicker?.label || '']}
-                  labelFormatter={(label: string) => new Date(label).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' })}
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      labelFormatter={(label) =>
+                        new Date(String(label)).toLocaleDateString('pl-PL', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                        })
+                      }
+                      formatter={(value) => (
+                        <span className="font-mono font-medium">
+                          {fmtPLN(Number(value))} zl
+                        </span>
+                      )}
+                    />
+                  }
                 />
                 <Area
                   type="monotone"
                   dataKey="value"
-                  stroke="#0b51b7"
+                  stroke="var(--color-value)"
                   strokeWidth={2}
                   fill="url(#chartGradient)"
                   dot={false}
-                  activeDot={{ r: 4, fill: '#0b51b7', strokeWidth: 0 }}
+                  activeDot={{ r: 4, fill: 'var(--color-value)', strokeWidth: 0 }}
                 />
               </AreaChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           )}
         </div>
 
