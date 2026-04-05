@@ -53,7 +53,7 @@ export default function RSS({ tick }: { tick: number }) {
   }, [tick]);
 
   return (
-    <Card icon="🤖" title="AI News" span={3}>
+    <Card icon="🤖" title="AI News">
       {loading ? (
         <Loading text="Ladowanie wiadomosci AI..." />
       ) : articles.length === 0 ? (

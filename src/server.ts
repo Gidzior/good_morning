@@ -43,10 +43,10 @@ const THIRTY_MIN = 30 * 60 * 1000;
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
 
 // --- API: Weather (keys from .env) ---
-app.get('/api/weather', async (_req, res) => {
+app.get('/api/weather', async (req, res) => {
   const apiKey = process.env.WEATHER_API_KEY;
-  const city = process.env.WEATHER_CITY || 'Warszawa';
-  const country = process.env.WEATHER_COUNTRY || 'PL';
+  const city = (req.query.city as string) || process.env.WEATHER_CITY || 'Warszawa';
+  const country = (req.query.country as string) || process.env.WEATHER_COUNTRY || 'PL';
 
   if (!apiKey || apiKey === 'TWOJ_KLUCZ_OPENWEATHERMAP') {
     return res.json({ current: { cod: 401, message: 'Brak klucza API pogody w .env' }, forecast: { list: [] } });
@@ -54,10 +54,10 @@ app.get('/api/weather', async (_req, res) => {
 
   try {
     const [current, forecast] = await Promise.all([
-      fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city},${country}&appid=${apiKey}&units=metric&lang=pl`).then(json),
-      fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${city},${country}&appid=${apiKey}&units=metric&lang=pl`).then(json),
+      fetch(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)},${encodeURIComponent(country)}&appid=${apiKey}&units=metric&lang=pl`).then(json),
+      fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(city)},${encodeURIComponent(country)}&appid=${apiKey}&units=metric&lang=pl`).then(json),
     ]);
-    res.json({ current, forecast });
+    res.json({ current, forecast, city, country });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
     res.status(500).json({ error: msg });
@@ -162,6 +162,46 @@ app.get('/api/stock/:symbol', async (req, res) => {
     });
     const data = await r.json();
     res.json(data);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    res.status(500).json({ error: msg });
+  }
+});
+
+// --- API: Historical stock data (Yahoo Finance, cached 30min) ---
+app.get('/api/stock/:symbol/history', async (req, res) => {
+  const { symbol } = req.params;
+  const daysParam = Math.min(Number(req.query.days) || 30, 365);
+  const rangeMap: Record<number, string> = { 7: '5d', 30: '1mo', 90: '3mo', 365: '1y' };
+  const range = rangeMap[daysParam] || '1mo';
+  const cacheKey = `stock-${symbol}-${range}`;
+
+  try {
+    const points = await cached(cacheKey, THIRTY_MIN, async () => {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d`;
+      const r = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+      });
+      const data = await r.json() as {
+        chart: {
+          result: Array<{
+            timestamp: number[];
+            indicators: { quote: Array<{ close: (number | null)[] }> };
+          }>;
+        };
+      };
+      const result = data.chart?.result?.[0];
+      if (!result?.timestamp) return [];
+      const timestamps = result.timestamp;
+      const closes = result.indicators?.quote?.[0]?.close || [];
+      return timestamps
+        .map((ts, i) => ({
+          date: new Date(ts * 1000).toISOString().slice(0, 10),
+          value: closes[i] != null ? Math.round(closes[i]! * 100) / 100 : null,
+        }))
+        .filter((p): p is { date: string; value: number } => p.value !== null);
+    });
+    res.json(points);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
     res.status(500).json({ error: msg });

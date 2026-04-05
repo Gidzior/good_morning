@@ -3,17 +3,30 @@ import { formatTime } from '../utils';
 import type { WeatherResponse, ForecastItem } from '../types';
 import Loading, { ErrorMsg } from './Loading';
 import Card from './DashboardCard';
+import config from '../config';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function Weather({ tick }: { tick: number }) {
   const [data, setData] = useState<WeatherResponse | null>(null);
   const [error, setError] = useState('');
+  const [cityIdx, setCityIdx] = useState(0);
+
+  const selected = config.CITIES[cityIdx];
 
   useEffect(() => {
-    fetch('/api/weather')
+    setData(null);
+    setError('');
+    fetch(`/api/weather?city=${encodeURIComponent(selected.city)}&country=${encodeURIComponent(selected.country)}`)
       .then(r => r.json())
       .then(d => { setData(d); setError(''); })
       .catch(e => setError(e.message));
-  }, [tick]);
+  }, [tick, selected.city, selected.country]);
 
   const noKey = data?.current?.cod === 401;
 
@@ -29,9 +42,57 @@ export default function Weather({ tick }: { tick: number }) {
     ? forecasts
     : (data?.forecast?.list?.filter(item => new Date(item.dt * 1000).toDateString() === tomorrowStr).slice(0, 5) ?? []);
 
+  // 3-day forecast: group by day, get max temp + most common icon (noon preferred)
+  interface DaySummary { date: Date; maxTemp: number; icon: string }
+  const dailyForecast: DaySummary[] = (() => {
+    if (!data?.forecast?.list) return [];
+    const today = new Date().toDateString();
+    const byDay = new Map<string, ForecastItem[]>();
+    for (const item of data.forecast.list) {
+      const dayStr = new Date(item.dt * 1000).toDateString();
+      if (dayStr === today) continue;
+      if (!byDay.has(dayStr)) byDay.set(dayStr, []);
+      byDay.get(dayStr)!.push(item);
+    }
+    const days: DaySummary[] = [];
+    for (const [dayStr, items] of byDay) {
+      if (days.length >= 3) break;
+      const maxTemp = Math.max(...items.map(i => i.main.temp));
+      // prefer noon icon (12:00-15:00), fallback to first
+      const noonItem = items.find(i => {
+        const h = new Date(i.dt * 1000).getHours();
+        return h >= 12 && h <= 15;
+      });
+      const icon = (noonItem || items[0]).weather[0].icon;
+      days.push({ date: new Date(dayStr), maxTemp, icon });
+    }
+    return days;
+  })();
+
+  const citySelect = (
+    <Select
+      value={selected.city}
+      onValueChange={(v) => {
+        const idx = config.CITIES.findIndex(c => c.city === v);
+        if (idx >= 0) setCityIdx(idx);
+      }}
+    >
+      <SelectTrigger className="h-7 w-[130px] border-border bg-secondary text-xs">
+        <SelectValue placeholder={selected.label} />
+      </SelectTrigger>
+      <SelectContent>
+        {config.CITIES.map((c) => (
+          <SelectItem key={c.city} value={c.city}>
+            {c.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
   return (
     <>
-      <Card icon="🌤" title="Pogoda teraz">
+      <Card icon="🌤" title="Pogoda" action={citySelect}>
         {noKey ? (
           <div className="weather-main">
             <div>
@@ -74,6 +135,27 @@ export default function Weather({ tick }: { tick: number }) {
                 <div className="value">{Math.round(data.current.wind.speed * 3.6)} km/h</div>
               </div>
             </div>
+            {dailyForecast.length > 0 && (
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {dailyForecast.map((day, i) => (
+                  <div key={i} className="flex items-center gap-2 rounded-lg bg-secondary px-2 py-2">
+                    <img
+                      src={`https://openweathermap.org/img/wn/${day.icon}@2x.png`}
+                      alt=""
+                      className="h-9 w-9 shrink-0"
+                    />
+                    <div className="flex min-w-0 flex-col">
+                      <span className="text-xs font-medium capitalize text-foreground">
+                        {day.date.toLocaleDateString('pl-PL', { weekday: 'short' })}
+                      </span>
+                      <span className="text-sm font-bold text-foreground">
+                        {Math.round(day.maxTemp)}°
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
       </Card>

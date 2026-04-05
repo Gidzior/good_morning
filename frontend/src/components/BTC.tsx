@@ -121,7 +121,7 @@ export default function BTC({ tick }: { tick: number }) {
   } satisfies ChartConfig;
 
   return (
-    <Card icon="💱" title="Kursy walut i BTC" span={2}>
+    <Card icon="💱" title="Kursy walut i BTC" span={3}>
       {error ? <ErrorMsg message={error} /> :
        !data ? <Loading text="Ladowanie kursow..." /> :
        data.status !== 'Ok' ? <ErrorMsg message="Zonda API error" /> :

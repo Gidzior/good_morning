@@ -80,7 +80,14 @@ export interface NamedayResponse {
   results?: { namedays?: { pl?: string } };
 }
 
+export interface CityConfig {
+  label: string;
+  city: string;
+  country: string;
+}
+
 export interface Config {
   STOCKS: StockConfig[];
+  CITIES: CityConfig[];
   REFRESH_INTERVAL: number;
 }

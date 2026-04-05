@@ -46,9 +46,9 @@ export default function AppSidebar({ lastUpdate, countdown, onRefresh }: AppSide
 
   return (
     <Sidebar variant="inset" collapsible="icon">
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-lg text-primary-foreground">
+      <SidebarHeader className="p-4 group-data-[collapsible=icon]:px-1.5 group-data-[collapsible=icon]:py-3">
+        <div className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-lg text-primary-foreground group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:text-sm">
             ☀
           </div>
           <div className="flex flex-col group-data-[collapsible=icon]:hidden">

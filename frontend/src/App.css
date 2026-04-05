@@ -24,28 +24,35 @@
 .weather-details {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  gap: 8px;
+  width: 100%;
 }
 
 .weather-detail {
   text-align: center;
-  padding: 10px;
+  padding: 8px 4px;
   background: var(--secondary);
   border-radius: 8px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .weather-detail .label {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--muted-foreground);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .weather-detail .value {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--foreground);
   margin-top: 2px;
+  white-space: nowrap;
 }
 
 /* Forecast */

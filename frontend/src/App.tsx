@@ -31,15 +31,17 @@ export default function App() {
         <SidebarInset>
           <DashboardHeader now={now} />
           <div className="p-6 max-sm:p-4">
-            <div className="grid grid-cols-3 gap-5 max-[1100px]:grid-cols-2 max-sm:grid-cols-1 max-sm:[&_.col-span-2]:col-span-1 max-sm:[&_.col-span-3]:col-span-1 max-[1100px]:[&_.col-span-3]:col-span-2">
+            <div className="grid grid-cols-3 gap-5 max-lg:grid-cols-2 max-sm:grid-cols-1 max-sm:[&_.col-span-2]:col-span-1 max-sm:[&_.col-span-3]:col-span-1 max-lg:[&_.col-span-3]:col-span-2">
               <Weather tick={tick} />
               <Quote tick={tick} />
               <Calendar tick={tick} />
               <Nameday tick={tick} />
               <BTC tick={tick} />
               <Stocks tick={tick} />
-              <NewsPL tick={tick} />
-              <RSS tick={tick} />
+              <div className="col-span-3 grid grid-cols-2 gap-5 max-lg:col-span-2 max-sm:col-span-1 max-sm:grid-cols-1">
+                <NewsPL tick={tick} />
+                <RSS tick={tick} />
+              </div>
             </div>
           </div>
         </SidebarInset>

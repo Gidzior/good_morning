@@ -6,10 +6,11 @@ interface DashboardCardProps {
   icon: string;
   title: string;
   span?: 2 | 3;
+  action?: ReactNode;
   children: ReactNode;
 }
 
-export default function DashboardCard({ icon, title, span, children }: DashboardCardProps) {
+export default function DashboardCard({ icon, title, span, action, children }: DashboardCardProps) {
   return (
     <Card
       className={cn(
@@ -18,13 +19,14 @@ export default function DashboardCard({ icon, title, span, children }: Dashboard
         span === 3 && 'col-span-3',
       )}
     >
-      <CardHeader className="flex-row items-center gap-2.5 border-b border-border pb-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-xl">
+      <CardHeader className="!flex !flex-row items-center gap-2.5 border-b border-border pb-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xl">
           {icon}
         </div>
-        <CardTitle className="text-sm font-semibold text-foreground">
+        <CardTitle className="flex-1 text-sm font-semibold text-foreground">
           {title}
         </CardTitle>
+        {action && <div className="ml-auto shrink-0">{action}</div>}
       </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>
