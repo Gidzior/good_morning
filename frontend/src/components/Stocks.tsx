@@ -4,7 +4,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/
 import type { ChartConfig } from '@/components/ui/chart';
 import config from '../config';
 import type { StockConfig } from '../types';
-import Loading, { ErrorMsg } from './Loading';
+import Loading from './Loading';
 import Card from './DashboardCard';
 import { cn } from '@/lib/utils';
 

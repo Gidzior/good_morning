@@ -21,12 +21,16 @@ import {
   QuoteIcon,
   CakeIcon,
   RefreshCwIcon,
+  LogOutIcon,
+  UserIcon,
 } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 
 interface AppSidebarProps {
   lastUpdate: Date;
   countdown: string;
   onRefresh: () => void;
+  onAccount?: () => void;
 }
 
 const NAV_ITEMS = [
@@ -40,7 +44,9 @@ const NAV_ITEMS = [
   { icon: RssIcon, label: 'RSS' },
 ] as const;
 
-export default function AppSidebar({ lastUpdate, countdown, onRefresh }: AppSidebarProps) {
+export default function AppSidebar({ lastUpdate, countdown, onRefresh, onAccount }: AppSidebarProps) {
+  const { user, logout } = useAuth();
+
   const fmtTime = (d: Date) =>
     d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
 
@@ -81,7 +87,54 @@ export default function AppSidebar({ lastUpdate, countdown, onRefresh }: AppSide
       <SidebarSeparator />
 
       <SidebarFooter className="p-3">
-        <div className="flex flex-col gap-2 group-data-[collapsible=icon]:hidden">
+        {/* User info */}
+        {user && (
+          <div className="mb-2 group-data-[collapsible=icon]:mb-0">
+            <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+              {user.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt=""
+                  className="h-7 w-7 shrink-0 rounded-full"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="flex min-w-0 flex-col group-data-[collapsible=icon]:hidden">
+                <span className="truncate text-xs font-medium text-foreground">{user.name}</span>
+                <span className="truncate text-[10px] text-muted-foreground">{user.email}</span>
+              </div>
+            </div>
+            <div className="mt-1.5 flex gap-1 group-data-[collapsible=icon]:mt-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
+              {onAccount && (
+                <button
+                  onClick={onAccount}
+                  className="flex h-7 flex-1 items-center justify-center gap-1 rounded-md text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8"
+                  title="Konto"
+                >
+                  <UserIcon className="h-3.5 w-3.5" />
+                  <span className="group-data-[collapsible=icon]:hidden">Konto</span>
+                </button>
+              )}
+              <button
+                onClick={logout}
+                className="flex h-7 flex-1 items-center justify-center gap-1 rounded-md text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8"
+                title="Wyloguj"
+              >
+                <LogOutIcon className="h-3.5 w-3.5" />
+                <span className="group-data-[collapsible=icon]:hidden">Wyloguj</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        <SidebarSeparator className="group-data-[collapsible=icon]:hidden" />
+
+        {/* Refresh info */}
+        <div className="flex flex-col gap-2 pt-2 group-data-[collapsible=icon]:hidden">
           <div className="text-[11px] text-muted-foreground">
             <div>Aktualizacja: {fmtTime(lastUpdate)}</div>
             {countdown && <div>Nastepna: {countdown}</div>}

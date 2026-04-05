@@ -6,3 +6,4 @@ config.js
 dist/
 .env
 .claude/
+data/

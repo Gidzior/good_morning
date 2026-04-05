@@ -40,7 +40,7 @@ export default function Calendar({ tick }: { tick: number }) {
           const d = new Date(now);
           d.setDate(d.getDate() + i);
           const dayStr = d.toDateString();
-          const label = i === 0 ? 'Dzis' : i === 1 ? 'Jutro' : formatDayShort(d);
+          const label = i === 0 ? 'Dziś' : i === 1 ? 'Jutro' : formatDayShort(d);
           const dayEvents = events.filter(ev => {
             const start = ev.start.dateTime ? new Date(ev.start.dateTime) : new Date(ev.start.date!);
             return start.toDateString() === dayStr;
@@ -55,31 +55,31 @@ export default function Calendar({ tick }: { tick: number }) {
   }, [tick]);
 
   return (
-    <Card icon="📆" title="Kalendarz — najblizsze 3 dni" span={2}>
+    <Card icon="📆" title="Kalendarz — najbliższe 3 dni" span={2}>
       {noKey ? (
         <div className="cal-empty">
-          Uzupelnij GOOGLE_CALENDAR_API_KEY i GOOGLE_CALENDAR_ID w pliku .env
+          Zaloguj się do kalendarza Google
         </div>
       ) : error ? (
-        <ErrorMsg message={`Blad kalendarza: ${error}`} />
+        <ErrorMsg message={`Błąd kalendarza: ${error}`} />
       ) : loading ? (
-        <Loading text="Ladowanie kalendarza..." />
+        <Loading text="Ładowanie kalendarza..." />
       ) : (
         days.map((day, i) => (
           <div className="cal-day" key={i}>
             <div className="cal-day-header">{day.label}</div>
             {day.events.length === 0 ? (
-              <div className="cal-empty">Brak wydarzen</div>
+              <div className="cal-empty">Brak wydarzeń</div>
             ) : (
               day.events.map((ev, j) => {
-                let time = 'Caly dzien';
+                let time = 'Cały dzień';
                 if (ev.start.dateTime) {
                   time = `${formatTime(new Date(ev.start.dateTime))} - ${formatTime(new Date(ev.end.dateTime!))}`;
                 }
                 return (
                   <div className="cal-event" key={j}>
                     <span className="time">{time}</span>
-                    <span className="title">{ev.summary || '(bez tytulu)'}</span>
+                    <span className="title">{ev.summary || '(bez tytułu)'}</span>
                   </div>
                 );
               })

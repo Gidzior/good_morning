@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import Card from './DashboardCard';
 
 // Wbudowana baza imienin (polskie)

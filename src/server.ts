@@ -1,12 +1,18 @@
 import 'dotenv/config';
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import path from 'path';
 import fetch, { Response } from 'node-fetch';
 import RSSParser from 'rss-parser';
+import { google } from 'googleapis';
+import authRouter, { requireAuth, getOAuth2ClientForUser } from './auth';
 
 const app = express();
 const PORT = 3001;
 const rssParser = new RSSParser();
+
+app.use(cookieParser());
+app.use(express.json());
 
 const json = (r: Response) => r.json();
 
@@ -41,6 +47,12 @@ const THIRTY_MIN = 30 * 60 * 1000;
 
 // Serve built React app
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
+
+// --- Auth routes (public) ---
+app.use('/auth', authRouter);
+
+// --- Protected API routes ---
+app.use('/api', requireAuth);
 
 // --- API: Weather (keys from .env) ---
 app.get('/api/weather', async (req, res) => {
@@ -220,24 +232,31 @@ app.get('/api/rss', async (req, res) => {
   }
 });
 
-// --- API: Google Calendar (keys from .env) ---
+// --- API: Google Calendar (per-user OAuth tokens) ---
 app.get('/api/calendar', async (req, res) => {
-  const apiKey = process.env.GOOGLE_CALENDAR_API_KEY;
-  const calendarId = process.env.GOOGLE_CALENDAR_ID || 'primary';
+  const userId = req.user!.user_id;
   const { timeMin, timeMax } = req.query;
 
-  if (!apiKey || apiKey === 'TWOJ_KLUCZ_GOOGLE_CALENDAR') {
-    return res.json({ error: { message: 'Brak klucza API kalendarza w .env' } });
+  const oauth2Client = getOAuth2ClientForUser(userId);
+  if (!oauth2Client) {
+    return res.json({ error: { message: 'Kalendarz nie polaczony. Przejdz do ustawien konta.' } });
   }
 
   try {
-    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?key=${apiKey}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=30`;
-    const r = await fetch(url);
-    const data = await r.json();
-    res.json(data);
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    const response = await calendar.events.list({
+      calendarId: 'primary',
+      timeMin: timeMin as string,
+      timeMax: timeMax as string,
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults: 30,
+    });
+    res.json({ items: response.data.items || [] });
   } catch (e: unknown) {
+    console.error('Calendar API error:', e);
     const msg = e instanceof Error ? e.message : 'Unknown error';
-    res.status(500).json({ error: msg });
+    res.json({ error: { message: `Blad kalendarza: ${msg}` } });
   }
 });
 
