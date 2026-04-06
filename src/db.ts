@@ -41,6 +41,14 @@ db.exec(`
     updated_at TEXT DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS user_calendar_prefs (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    calendar_id TEXT NOT NULL,
+    calendar_name TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (user_id, calendar_id)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
 `);
@@ -85,6 +93,17 @@ const stmts = {
   getToken: db.prepare(`SELECT * FROM user_tokens WHERE user_id = ?`),
 
   deleteToken: db.prepare(`DELETE FROM user_tokens WHERE user_id = ?`),
+
+  upsertCalendarPref: db.prepare(`
+    INSERT INTO user_calendar_prefs (user_id, calendar_id, calendar_name, enabled)
+    VALUES (@user_id, @calendar_id, @calendar_name, @enabled)
+    ON CONFLICT(user_id, calendar_id) DO UPDATE SET
+      calendar_name = @calendar_name, enabled = @enabled
+  `),
+
+  getCalendarPrefs: db.prepare(`SELECT * FROM user_calendar_prefs WHERE user_id = ?`),
+
+  deleteCalendarPrefs: db.prepare(`DELETE FROM user_calendar_prefs WHERE user_id = ?`),
 };
 
 // --- Public API ---
@@ -114,6 +133,13 @@ export interface UserToken {
   token_type: string;
   scope: string | null;
   expires_at: string | null;
+}
+
+export interface CalendarPref {
+  user_id: string;
+  calendar_id: string;
+  calendar_name: string;
+  enabled: number; // 0 or 1
 }
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -167,6 +193,22 @@ export function getToken(userId: string): UserToken | null {
 
 export function deleteToken(userId: string): void {
   stmts.deleteToken.run(userId);
+}
+
+export function getCalendarPrefs(userId: string): CalendarPref[] {
+  return stmts.getCalendarPrefs.all(userId) as CalendarPref[];
+}
+
+export function saveCalendarPrefs(userId: string, prefs: { calendar_id: string; calendar_name: string; enabled: boolean }[]): void {
+  stmts.deleteCalendarPrefs.run(userId);
+  for (const p of prefs) {
+    stmts.upsertCalendarPref.run({
+      user_id: userId,
+      calendar_id: p.calendar_id,
+      calendar_name: p.calendar_name,
+      enabled: p.enabled ? 1 : 0,
+    });
+  }
 }
 
 // Cleanup expired sessions on startup

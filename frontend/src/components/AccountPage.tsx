@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -7,7 +8,21 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import AppSidebar from './AppSidebar';
-import { CalendarIcon, LogOutIcon, LinkIcon, UnlinkIcon, ArrowLeftIcon } from 'lucide-react';
+import Loading from './Loading';
+import { CalendarIcon, LogOutIcon, LinkIcon, UnlinkIcon, ArrowLeftIcon, CheckIcon } from 'lucide-react';
+
+interface GoogleCalendar {
+  id: string;
+  summary: string;
+  primary: boolean;
+  backgroundColor: string;
+}
+
+interface CalendarPref {
+  calendar_id: string;
+  calendar_name: string;
+  enabled: number;
+}
 
 interface AccountPageProps {
   onBack: () => void;
@@ -18,12 +33,75 @@ interface AccountPageProps {
 
 export default function AccountPage({ onBack, lastUpdate, countdown, onRefresh }: AccountPageProps) {
   const { user, logout, refresh } = useAuth();
+  const [calendars, setCalendars] = useState<GoogleCalendar[]>([]);
+  const [enabledIds, setEnabledIds] = useState<Set<string>>(new Set());
+  const [loadingCals, setLoadingCals] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const fetchCalendars = useCallback(async () => {
+    setLoadingCals(true);
+    try {
+      const res = await fetch('/api/calendars');
+      const data = await res.json() as { calendars: GoogleCalendar[]; prefs: CalendarPref[] };
+      setCalendars(data.calendars);
+
+      if (data.prefs.length > 0) {
+        setEnabledIds(new Set(data.prefs.filter(p => p.enabled).map(p => p.calendar_id)));
+      } else {
+        // Default: enable primary calendar
+        const primary = data.calendars.find(c => c.primary);
+        setEnabledIds(new Set(primary ? [primary.id] : []));
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingCals(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (user?.has_calendar) {
+      fetchCalendars();
+    }
+  }, [user?.has_calendar, fetchCalendars]);
 
   if (!user) return null;
 
   const handleDisconnectCalendar = async () => {
     await fetch('/auth/disconnect-calendar', { method: 'POST' });
     await refresh();
+    setCalendars([]);
+    setEnabledIds(new Set());
+  };
+
+  const toggleCalendar = (id: string) => {
+    setEnabledIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+    setSaved(false);
+  };
+
+  const savePrefs = async () => {
+    setSaving(true);
+    const prefs = calendars.map(c => ({
+      calendar_id: c.id,
+      calendar_name: c.summary,
+      enabled: enabledIds.has(c.id),
+    }));
+    await fetch('/api/calendars/prefs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prefs }),
+    });
+    setSaving(false);
+    setSaved(true);
   };
 
   return (
@@ -75,33 +153,91 @@ export default function AccountPage({ onBack, lastUpdate, countdown, onRefresh }
                   Google Calendar
                 </CardTitle>
               </CardHeader>
-              <CardContent className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {user.has_calendar ? (
+                      <Badge variant="secondary" className="gap-1 bg-emerald-500/10 text-emerald-600">
+                        <LinkIcon className="h-3 w-3" />
+                        Polaczony
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="gap-1">
+                        <UnlinkIcon className="h-3 w-3" />
+                        Nie polaczony
+                      </Badge>
+                    )}
+                  </div>
                   {user.has_calendar ? (
-                    <Badge variant="secondary" className="gap-1 bg-emerald-500/10 text-emerald-600">
-                      <LinkIcon className="h-3 w-3" />
-                      Polaczony
-                    </Badge>
+                    <Button variant="outline" size="sm" className="gap-2" onClick={handleDisconnectCalendar}>
+                      <UnlinkIcon className="h-3.5 w-3.5" />
+                      Odlacz
+                    </Button>
                   ) : (
-                    <Badge variant="secondary" className="gap-1">
-                      <UnlinkIcon className="h-3 w-3" />
-                      Nie polaczony
-                    </Badge>
+                    <a
+                      href="/auth/calendar-connect"
+                      className={buttonVariants({ variant: 'outline', size: 'sm', className: 'gap-2' })}
+                    >
+                      <LinkIcon className="h-3.5 w-3.5" />
+                      Polacz kalendarz
+                    </a>
                   )}
                 </div>
-                {user.has_calendar ? (
-                  <Button variant="outline" size="sm" className="gap-2" onClick={handleDisconnectCalendar}>
-                    <UnlinkIcon className="h-3.5 w-3.5" />
-                    Odlacz
-                  </Button>
-                ) : (
-                  <a
-                    href="/auth/calendar-connect"
-                    className={buttonVariants({ variant: 'outline', size: 'sm', className: 'gap-2' })}
-                  >
-                    <LinkIcon className="h-3.5 w-3.5" />
-                    Polacz kalendarz
-                  </a>
+
+                {/* Calendar selection */}
+                {user.has_calendar && (
+                  <div className="mt-4 border-t border-border pt-4">
+                    <div className="mb-3 text-xs font-medium text-muted-foreground">
+                      Wybierz kalendarze do wyswietlania
+                    </div>
+                    {loadingCals ? (
+                      <Loading text="Ladowanie kalendarzy..." />
+                    ) : calendars.length === 0 ? (
+                      <div className="text-xs text-muted-foreground">Brak kalendarzy</div>
+                    ) : (
+                      <>
+                        <div className="flex flex-col gap-1.5">
+                          {calendars.map(cal => (
+                            <button
+                              key={cal.id}
+                              onClick={() => toggleCalendar(cal.id)}
+                              className="flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
+                            >
+                              <div
+                                className="flex h-5 w-5 shrink-0 items-center justify-center rounded border"
+                                style={{
+                                  backgroundColor: enabledIds.has(cal.id) ? cal.backgroundColor : 'transparent',
+                                  borderColor: cal.backgroundColor,
+                                }}
+                              >
+                                {enabledIds.has(cal.id) && (
+                                  <CheckIcon className="h-3 w-3 text-white" />
+                                )}
+                              </div>
+                              <span className="flex-1 truncate text-foreground">
+                                {cal.summary}
+                                {cal.primary && (
+                                  <span className="ml-1.5 text-[10px] text-muted-foreground">(glowny)</span>
+                                )}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="mt-3 flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            onClick={savePrefs}
+                            disabled={saving}
+                          >
+                            {saving ? 'Zapisywanie...' : 'Zapisz'}
+                          </Button>
+                          {saved && (
+                            <span className="text-xs text-emerald-600">Zapisano</span>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 )}
               </CardContent>
             </Card>

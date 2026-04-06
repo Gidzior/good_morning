@@ -6,6 +6,7 @@ import fetch, { Response } from 'node-fetch';
 import RSSParser from 'rss-parser';
 import { google } from 'googleapis';
 import authRouter, { requireAuth, getOAuth2ClientForUser } from './auth';
+import { getCalendarPrefs, saveCalendarPrefs } from './db';
 
 const app = express();
 const PORT = 3001;
@@ -232,7 +233,48 @@ app.get('/api/rss', async (req, res) => {
   }
 });
 
-// --- API: Google Calendar (per-user OAuth tokens) ---
+// --- API: List user's Google Calendars ---
+app.get('/api/calendars', async (req, res) => {
+  const userId = req.user!.user_id;
+
+  const oauth2Client = getOAuth2ClientForUser(userId);
+  if (!oauth2Client) {
+    return res.json({ calendars: [], prefs: [] });
+  }
+
+  try {
+    const cal = google.calendar({ version: 'v3', auth: oauth2Client });
+    const response = await cal.calendarList.list();
+    const calendars = (response.data.items || []).map(c => ({
+      id: c.id || '',
+      summary: c.summary || '',
+      primary: c.primary || false,
+      backgroundColor: c.backgroundColor || '#4285f4',
+    }));
+
+    const prefs = getCalendarPrefs(userId);
+    res.json({ calendars, prefs });
+  } catch (e: unknown) {
+    console.error('Calendar list error:', e);
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    res.status(500).json({ error: msg });
+  }
+});
+
+// --- API: Save calendar preferences ---
+app.post('/api/calendars/prefs', async (req, res) => {
+  const userId = req.user!.user_id;
+  const { prefs } = req.body as { prefs: { calendar_id: string; calendar_name: string; enabled: boolean }[] };
+
+  if (!Array.isArray(prefs)) {
+    return res.status(400).json({ error: 'Nieprawidlowe dane' });
+  }
+
+  saveCalendarPrefs(userId, prefs);
+  res.json({ ok: true });
+});
+
+// --- API: Google Calendar events (per-user, multi-calendar) ---
 app.get('/api/calendar', async (req, res) => {
   const userId = req.user!.user_id;
   const { timeMin, timeMax } = req.query;
@@ -243,16 +285,49 @@ app.get('/api/calendar', async (req, res) => {
   }
 
   try {
-    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-    const response = await calendar.events.list({
-      calendarId: 'primary',
-      timeMin: timeMin as string,
-      timeMax: timeMax as string,
-      singleEvents: true,
-      orderBy: 'startTime',
-      maxResults: 30,
+    const cal = google.calendar({ version: 'v3', auth: oauth2Client });
+
+    // Get enabled calendars from prefs, default to primary only
+    const prefs = getCalendarPrefs(userId);
+    const enabledIds = prefs.length > 0
+      ? prefs.filter(p => p.enabled).map(p => p.calendar_id)
+      : ['primary'];
+
+    // Get calendar colors
+    const calList = await cal.calendarList.list();
+    const colorMap = new Map<string, string>();
+    for (const c of calList.data.items || []) {
+      if (c.id) colorMap.set(c.id, c.backgroundColor || '#4285f4');
+    }
+
+    // Fetch events from all enabled calendars in parallel
+    const allEvents = await Promise.all(
+      enabledIds.map(async (calendarId) => {
+        try {
+          const response = await cal.events.list({
+            calendarId,
+            timeMin: timeMin as string,
+            timeMax: timeMax as string,
+            singleEvents: true,
+            orderBy: 'startTime',
+            maxResults: 30,
+          });
+          const color = colorMap.get(calendarId) || '#4285f4';
+          return (response.data.items || []).map(ev => ({ ...ev, calendarColor: color }));
+        } catch {
+          return [];
+        }
+      })
+    );
+
+    // Merge and sort by start time
+    const merged = allEvents.flat().sort((a, b) => {
+      const aStart = a.start?.dateTime || a.start?.date || '';
+      const bStart = b.start?.dateTime || b.start?.date || '';
+      return aStart.localeCompare(bStart);
     });
-    res.json({ items: response.data.items || [] });
+
+    res.json({ items: merged });
   } catch (e: unknown) {
     console.error('Calendar API error:', e);
     const msg = e instanceof Error ? e.message : 'Unknown error';

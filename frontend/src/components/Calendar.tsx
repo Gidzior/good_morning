@@ -77,7 +77,11 @@ export default function Calendar({ tick }: { tick: number }) {
                   time = `${formatTime(new Date(ev.start.dateTime))} - ${formatTime(new Date(ev.end.dateTime!))}`;
                 }
                 return (
-                  <div className="cal-event" key={j}>
+                  <div
+                    className="cal-event"
+                    key={j}
+                    style={ev.calendarColor ? { borderLeftColor: ev.calendarColor } : undefined}
+                  >
                     <span className="time">{time}</span>
                     <span className="title">{ev.summary || '(bez tytułu)'}</span>
                   </div>

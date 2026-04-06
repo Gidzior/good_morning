@@ -1,5 +1,3 @@
-import Card from './DashboardCard';
-
 // Wbudowana baza imienin (polskie)
 const NAMEDAYS: Record<string, string> = {
   '1-1': 'Mieczysław, Mieszko',
@@ -370,24 +368,8 @@ const NAMEDAYS: Record<string, string> = {
   '31-12': 'Sylwester, Melania',
 };
 
-function getTodayKey(): string {
+export function getTodayNameday(): string | null {
   const now = new Date();
-  return `${now.getDate()}-${now.getMonth() + 1}`;
-}
-
-export default function Nameday({ tick: _tick }: { tick: number }) {
-  const key = getTodayKey();
-  const names = NAMEDAYS[key];
-
-  return (
-    <Card icon="🎂" title="Imieniny dzis">
-      {names ? (
-        <div className="nameday-text">🎉 {names}</div>
-      ) : (
-        <div className="nameday-text" style={{ color: 'var(--text-muted)' }}>
-          Brak danych imienin na dzis
-        </div>
-      )}
-    </Card>
-  );
+  const key = `${now.getDate()}-${now.getMonth() + 1}`;
+  return NAMEDAYS[key] || null;
 }

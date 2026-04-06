@@ -15,7 +15,6 @@ import Stocks from './components/Stocks';
 import RSS from './components/RSS';
 import NewsPL from './components/NewsPL';
 import Quote from './components/Quote';
-import Nameday from './components/Nameday';
 import './App.css';
 
 type Page = 'dashboard' | 'account';
@@ -57,7 +56,6 @@ function Dashboard() {
               <Weather tick={tick} />
               <Quote tick={tick} />
               <Calendar tick={tick} />
-              <Nameday tick={tick} />
               <BTC tick={tick} />
               <Stocks tick={tick} />
               <div className="col-span-3 grid grid-cols-2 gap-5 max-lg:col-span-2 max-sm:col-span-1 max-sm:grid-cols-1">
