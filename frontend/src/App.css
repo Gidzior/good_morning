@@ -199,6 +199,77 @@
   }
 }
 
+/* Dashboard Grid */
+.grid-widget {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.grid-widget > [data-slot="card"],
+.grid-widget > div > [data-slot="card"] {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.grid-widget > div {
+  flex: 1;
+  min-height: 0;
+}
+
+.grid-widget [data-slot="card-content"] {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.edit-mode .grid-widget {
+  border: 2px dashed var(--muted-foreground);
+  border-radius: 12px;
+  position: relative;
+  opacity: 0.95;
+}
+
+.edit-mode .grid-widget:hover {
+  border-color: var(--primary);
+  opacity: 1;
+}
+
+.drag-handle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+  cursor: grab;
+  color: var(--muted-foreground);
+  background: var(--card);
+  border-radius: 4px;
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.react-grid-item.react-grid-placeholder {
+  background: var(--primary) !important;
+  opacity: 0.15 !important;
+  border-radius: 12px;
+}
+
+.react-resizable-handle {
+  z-index: 10;
+}
+
+.edit-mode .react-resizable-handle::after {
+  border-color: var(--muted-foreground) !important;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--background); }

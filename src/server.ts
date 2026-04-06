@@ -6,7 +6,7 @@ import fetch, { Response } from 'node-fetch';
 import RSSParser from 'rss-parser';
 import { google } from 'googleapis';
 import authRouter, { requireAuth, getOAuth2ClientForUser } from './auth';
-import { getCalendarPrefs, saveCalendarPrefs } from './db';
+import { getCalendarPrefs, saveCalendarPrefs, getLayout, saveLayout } from './db';
 
 const app = express();
 const PORT = 3001;
@@ -333,6 +333,23 @@ app.get('/api/calendar', async (req, res) => {
     const msg = e instanceof Error ? e.message : 'Unknown error';
     res.json({ error: { message: `Blad kalendarza: ${msg}` } });
   }
+});
+
+// --- API: Dashboard layout ---
+app.get('/api/layout', (req, res) => {
+  const userId = req.user!.user_id;
+  const layout = getLayout(userId);
+  res.json({ layout });
+});
+
+app.put('/api/layout', (req, res) => {
+  const userId = req.user!.user_id;
+  const { layout } = req.body as { layout: unknown };
+  if (!layout) {
+    return res.status(400).json({ error: 'Brak danych layoutu' });
+  }
+  saveLayout(userId, layout);
+  res.json({ ok: true });
 });
 
 // SPA fallback

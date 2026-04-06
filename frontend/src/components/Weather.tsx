@@ -91,7 +91,7 @@ export default function Weather({ tick }: { tick: number }) {
   );
 
   return (
-    <>
+    <div className="grid grid-cols-2 gap-5 max-sm:grid-cols-1">
       <Card icon="🌤" title="Pogoda" action={citySelect}>
         {noKey ? (
           <div className="weather-main">
@@ -178,6 +178,6 @@ export default function Weather({ tick }: { tick: number }) {
           ))
         )}
       </Card>
-    </>
+    </div>
   );
 }

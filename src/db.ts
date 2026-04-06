@@ -49,6 +49,12 @@ db.exec(`
     PRIMARY KEY (user_id, calendar_id)
   );
 
+  CREATE TABLE IF NOT EXISTS user_layouts (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    layout_json TEXT NOT NULL,
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
 `);
@@ -104,6 +110,15 @@ const stmts = {
   getCalendarPrefs: db.prepare(`SELECT * FROM user_calendar_prefs WHERE user_id = ?`),
 
   deleteCalendarPrefs: db.prepare(`DELETE FROM user_calendar_prefs WHERE user_id = ?`),
+
+  upsertLayout: db.prepare(`
+    INSERT INTO user_layouts (user_id, layout_json, updated_at)
+    VALUES (?, ?, datetime('now'))
+    ON CONFLICT(user_id) DO UPDATE SET
+      layout_json = excluded.layout_json, updated_at = datetime('now')
+  `),
+
+  getLayout: db.prepare(`SELECT layout_json FROM user_layouts WHERE user_id = ?`),
 };
 
 // --- Public API ---
@@ -209,6 +224,16 @@ export function saveCalendarPrefs(userId: string, prefs: { calendar_id: string; 
       enabled: p.enabled ? 1 : 0,
     });
   }
+}
+
+export function getLayout(userId: string): unknown | null {
+  const row = stmts.getLayout.get(userId) as { layout_json: string } | undefined;
+  if (!row) return null;
+  return JSON.parse(row.layout_json) as unknown;
+}
+
+export function saveLayout(userId: string, layout: unknown): void {
+  stmts.upsertLayout.run(userId, JSON.stringify(layout));
 }
 
 // Cleanup expired sessions on startup

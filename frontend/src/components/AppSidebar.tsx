@@ -22,6 +22,8 @@ import {
   RefreshCwIcon,
   LogOutIcon,
   UserIcon,
+  LayoutGridIcon,
+  RotateCcwIcon,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
@@ -30,6 +32,9 @@ interface AppSidebarProps {
   countdown: string;
   onRefresh: () => void;
   onAccount?: () => void;
+  editMode?: boolean;
+  onToggleEdit?: () => void;
+  onResetLayout?: () => void;
 }
 
 const NAV_ITEMS = [
@@ -42,7 +47,7 @@ const NAV_ITEMS = [
   { icon: RssIcon, label: 'RSS' },
 ] as const;
 
-export default function AppSidebar({ lastUpdate, countdown, onRefresh, onAccount }: AppSidebarProps) {
+export default function AppSidebar({ lastUpdate, countdown, onRefresh, onAccount, editMode, onToggleEdit, onResetLayout }: AppSidebarProps) {
   const { user, logout } = useAuth();
 
   const fmtTime = (d: Date) =>
@@ -128,6 +133,36 @@ export default function AppSidebar({ lastUpdate, countdown, onRefresh, onAccount
             </div>
           </div>
         )}
+
+        {/* Layout edit */}
+        <div className="flex gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
+          {onToggleEdit && (
+            <button
+              onClick={onToggleEdit}
+              className={`flex h-7 flex-1 items-center justify-center gap-1 rounded-md text-xs transition-colors group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 ${
+                editMode
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+              }`}
+              title={editMode ? 'Zakoncz edycje' : 'Edytuj layout'}
+            >
+              <LayoutGridIcon className="h-3.5 w-3.5" />
+              <span className="group-data-[collapsible=icon]:hidden">
+                {editMode ? 'Gotowe' : 'Edytuj'}
+              </span>
+            </button>
+          )}
+          {editMode && onResetLayout && (
+            <button
+              onClick={onResetLayout}
+              className="flex h-7 items-center justify-center gap-1 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:px-0"
+              title="Resetuj layout"
+            >
+              <RotateCcwIcon className="h-3.5 w-3.5" />
+              <span className="group-data-[collapsible=icon]:hidden">Reset</span>
+            </button>
+          )}
+        </div>
 
         <SidebarSeparator className="group-data-[collapsible=icon]:hidden" />
 

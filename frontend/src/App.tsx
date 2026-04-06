@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import config from './config';
 import { useRefresh } from './hooks/useRefresh';
+import { useLayout } from './hooks/useLayout';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import AppSidebar from './components/AppSidebar';
 import DashboardHeader from './components/DashboardHeader';
+import DashboardGrid from './components/DashboardGrid';
 import LoginPage from './components/LoginPage';
 import AccountPage from './components/AccountPage';
 import Weather from './components/Weather';
@@ -15,12 +17,14 @@ import Stocks from './components/Stocks';
 import RSS from './components/RSS';
 import NewsPL from './components/NewsPL';
 import Quote from './components/Quote';
+import type { WidgetId } from './types';
 import './App.css';
 
 type Page = 'dashboard' | 'account';
 
 function Dashboard() {
   const { lastUpdate, countdown, refresh, tick } = useRefresh(config.REFRESH_INTERVAL);
+  const { layout, loaded, editMode, setEditMode, onLayoutChange, resetLayout } = useLayout();
   const [now, setNow] = useState(new Date());
   const [page, setPage] = useState<Page>('dashboard');
 
@@ -28,6 +32,16 @@ function Dashboard() {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  const widgets = useMemo(() => [
+    { id: 'weather' as WidgetId, node: <Weather tick={tick} /> },
+    { id: 'quote' as WidgetId, node: <Quote tick={tick} /> },
+    { id: 'calendar' as WidgetId, node: <Calendar tick={tick} /> },
+    { id: 'btc' as WidgetId, node: <BTC tick={tick} /> },
+    { id: 'stocks' as WidgetId, node: <Stocks tick={tick} /> },
+    { id: 'news' as WidgetId, node: <NewsPL tick={tick} /> },
+    { id: 'rss' as WidgetId, node: <RSS tick={tick} /> },
+  ], [tick]);
 
   if (page === 'account') {
     return (
@@ -48,21 +62,23 @@ function Dashboard() {
           countdown={countdown}
           onRefresh={refresh}
           onAccount={() => setPage('account')}
+          editMode={editMode}
+          onToggleEdit={() => setEditMode(!editMode)}
+          onResetLayout={resetLayout}
         />
         <SidebarInset>
           <DashboardHeader now={now} />
           <div className="p-6 max-sm:p-4">
-            <div className="grid grid-cols-3 gap-5 max-lg:grid-cols-2 max-sm:grid-cols-1 max-sm:[&_.col-span-2]:col-span-1 max-sm:[&_.col-span-3]:col-span-1 max-lg:[&_.col-span-3]:col-span-2">
-              <Weather tick={tick} />
-              <Quote tick={tick} />
-              <Calendar tick={tick} />
-              <BTC tick={tick} />
-              <Stocks tick={tick} />
-              <div className="col-span-3 grid grid-cols-2 gap-5 max-lg:col-span-2 max-sm:col-span-1 max-sm:grid-cols-1">
-                <NewsPL tick={tick} />
-                <RSS tick={tick} />
-              </div>
-            </div>
+            {loaded ? (
+              <DashboardGrid
+                widgets={widgets}
+                layout={layout}
+                editMode={editMode}
+                onLayoutChange={onLayoutChange}
+              />
+            ) : (
+              <div className="text-sm text-muted-foreground">Ladowanie layoutu...</div>
+            )}
           </div>
         </SidebarInset>
       </SidebarProvider>

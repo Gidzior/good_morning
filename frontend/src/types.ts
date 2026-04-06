@@ -92,3 +92,16 @@ export interface Config {
   CITIES: CityConfig[];
   REFRESH_INTERVAL: number;
 }
+
+export interface LayoutItem {
+  i: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  minW?: number;
+  maxW?: number;
+  minH?: number;
+}
+
+export type WidgetId = 'weather' | 'quote' | 'calendar' | 'btc' | 'stocks' | 'news' | 'rss';
