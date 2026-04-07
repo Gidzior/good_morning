@@ -7,6 +7,7 @@ import type { SessionWithUser, UserToken } from './db';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3001';
+const FRONTEND_URL = process.env.FRONTEND_URL || BASE_URL;
 const REDIRECT_URI = `${BASE_URL}/auth/google/callback`;
 
 const SCOPES = [
@@ -118,7 +119,7 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     });
 
     // Redirect to dashboard
-    res.redirect('/');
+    res.redirect(FRONTEND_URL);
   } catch (err: unknown) {
     console.error('Google OAuth error:', err);
     const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -200,7 +201,7 @@ if (BASE_URL.includes('localhost')) {
       sameSite: 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
-    res.redirect('/');
+    res.redirect(FRONTEND_URL);
   });
 }
 
