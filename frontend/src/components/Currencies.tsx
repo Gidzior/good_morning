@@ -1,26 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { AreaChart, Area, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import type { ChartConfig } from '@/components/ui/chart';
+import type { ChartPoint } from '../types';
+import { PERIODS, CHART_CACHE_TTL } from '../config';
+import { fmtPLN, fmtChartDate } from '../utils';
 import Loading from './Loading';
 import Card from './DashboardCard';
+import SettingsModal from './SettingsModal';
+import { TickerGrid } from './TickerCards';
+import type { TickerData } from './TickerCards';
 import { cn } from '@/lib/utils';
-
-function fmtPLN(val: number): string {
-  return val.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-}
 
 interface CurrencyDef { code: string; name: string }
 interface CurrencyResult { code: string; name: string; mid: number; change: number; error?: boolean }
-interface ChartPoint { date: string; value: number }
-
-const PERIODS = [
-  { label: '7D', days: 7 },
-  { label: '1M', days: 30 },
-  { label: '3M', days: 90 },
-  { label: '1R', days: 365 },
-] as const;
 
 export default function Currencies({ tick }: { tick: number }) {
   const [currencies, setCurrencies] = useState<CurrencyDef[]>([]);
@@ -31,9 +24,7 @@ export default function Currencies({ tick }: { tick: number }) {
   const [chart, setChart] = useState<ChartPoint[]>([]);
   const [chartLoading, setChartLoading] = useState(true);
   const chartCache = useRef(new Map<string, { data: ChartPoint[]; ts: number }>());
-  const CACHE_TTL = 30 * 60 * 1000;
 
-  // Settings
   const [showSettings, setShowSettings] = useState(false);
   const [available, setAvailable] = useState<CurrencyDef[]>([]);
   const [query, setQuery] = useState('');
@@ -45,7 +36,6 @@ export default function Currencies({ tick }: { tick: number }) {
     });
   }, []);
 
-  // Fetch current rates from NBP
   useEffect(() => {
     if (!currencies.length) { setLoading(false); setResults([]); return; }
     setLoading(true);
@@ -63,12 +53,11 @@ export default function Currencies({ tick }: { tick: number }) {
     ).then(r => { setResults(r); setLoading(false); });
   }, [currencies, tick]);
 
-  // Chart
   const loadChart = useCallback(() => {
     if (!active) return;
     const key = `cur-${active}-${period}`;
     const entry = chartCache.current.get(key);
-    if (entry && Date.now() - entry.ts < CACHE_TTL) {
+    if (entry && Date.now() - entry.ts < CHART_CACHE_TTL) {
       setChart(entry.data); setChartLoading(false); return;
     }
     setChartLoading(true);
@@ -80,7 +69,7 @@ export default function Currencies({ tick }: { tick: number }) {
         setChart(data); setChartLoading(false);
       })
       .catch(() => setChartLoading(false));
-  }, [active, period, CACHE_TTL]);
+  }, [active, period]);
 
   useEffect(() => { loadChart(); }, [loadChart, tick]);
 
@@ -110,11 +99,14 @@ export default function Currencies({ tick }: { tick: number }) {
   const filtered = query ? available.filter(a => a.code.toLowerCase().includes(query.toLowerCase()) || a.name.toLowerCase().includes(query.toLowerCase())) : available;
   const activeTicker = results.find(r => r.code === active);
 
-  const fmtDate = (d: string) => {
-    const date = new Date(d);
-    if (period <= 90) return date.toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' });
-    return date.toLocaleDateString('pl-PL', { month: 'short', year: '2-digit' });
-  };
+  const tickers: TickerData[] = results.map(r => ({
+    id: r.code,
+    label: `${r.code}/PLN`,
+    displayValue: fmtPLN(r.mid, 4),
+    unit: 'zl',
+    change: r.change,
+    error: r.error,
+  }));
 
   const chartConfig = { value: { label: activeTicker?.code ?? 'Kurs', color: 'var(--chart-1)' } } satisfies ChartConfig;
 
@@ -131,7 +123,7 @@ export default function Currencies({ tick }: { tick: number }) {
           <div className="mb-3 flex items-center justify-between">
             <div>
               <div className="text-lg font-bold text-foreground">
-                {activeTicker && !activeTicker.error ? fmtPLN(activeTicker.mid) : '—'} <span className="text-sm font-normal text-muted-foreground">zl</span>
+                {activeTicker && !activeTicker.error ? fmtPLN(activeTicker.mid, 4) : '—'} <span className="text-sm font-normal text-muted-foreground">zl</span>
               </div>
               <div className="text-xs text-muted-foreground">{activeTicker?.code}/PLN — {activeTicker?.name}</div>
             </div>
@@ -156,12 +148,12 @@ export default function Currencies({ tick }: { tick: number }) {
                       <stop offset="100%" stopColor="var(--color-value)" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} interval="equidistantPreserveStart" minTickGap={40} />
+                  <XAxis dataKey="date" tickFormatter={d => fmtChartDate(d, period)} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} interval="equidistantPreserveStart" minTickGap={40} />
                   <YAxis domain={['auto', 'auto']} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} width={50} tickFormatter={(v: number) => v.toFixed(2)} />
                   <ChartTooltip content={
                     <ChartTooltipContent
                       labelFormatter={(label) => new Date(String(label)).toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' })}
-                      formatter={(value) => <span className="font-mono font-medium">{fmtPLN(Number(value))} zl</span>}
+                      formatter={(value) => <span className="font-mono font-medium">{fmtPLN(Number(value), 4)} zl</span>}
                     />
                   } />
                   <Area type="monotone" dataKey="value" stroke="var(--color-value)" strokeWidth={2} fill="url(#currGradient)" dot={false} activeDot={{ r: 4, fill: 'var(--color-value)', strokeWidth: 0 }} />
@@ -170,84 +162,37 @@ export default function Currencies({ tick }: { tick: number }) {
             }
           </div>
 
-          <div className="mt-4 hidden sm:grid" style={{ gridTemplateColumns: `repeat(${Math.min(results.length, 5)}, 1fr)`, gap: '0.75rem' }}>
-            {results.map(t => <TickerCard key={t.code} t={t} active={active} onSelect={setActive} />)}
-          </div>
-          <div className="mt-4 flex flex-col gap-1 sm:hidden">
-            {results.map(t => <TickerRow key={t.code} t={t} active={active} onSelect={setActive} />)}
-          </div>
+          <TickerGrid items={tickers} active={active} onSelect={setActive} />
         </>
       )}
 
-      {showSettings && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowSettings(false)}>
-          <div className="mx-4 w-full max-w-md rounded-xl bg-card p-5 shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Zarzadzaj walutami</h3>
-              <button onClick={() => setShowSettings(false)} className="text-muted-foreground hover:text-foreground text-xl leading-none">&times;</button>
-            </div>
-            <input type="text" value={query} onChange={e => setQuery(e.target.value)}
-              placeholder="Szukaj (np. USD, EUR, funt)..."
-              className="mb-3 w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-primary" autoFocus />
-            <div className="mb-4 max-h-40 overflow-y-auto rounded-lg border">
-              {filtered.slice(0, 20).map(c => (
-                <button key={c.code} onClick={() => addCurrency(c)}
-                  disabled={!!currencies.find(x => x.code === c.code)}
-                  className={cn('flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-secondary',
-                    currencies.find(x => x.code === c.code) && 'opacity-40')}>
-                  <span><span className="font-medium">{c.code}</span> — {c.name}</span>
-                  {currencies.find(x => x.code === c.code) ? <span className="text-xs text-muted-foreground">dodana</span> : <span className="text-primary">+</span>}
-                </button>
-              ))}
-            </div>
-            <div className="text-xs font-medium text-muted-foreground mb-2">Twoje waluty ({currencies.length})</div>
-            {currencies.length === 0 ? <p className="text-sm text-muted-foreground">Brak — wybierz powyzej</p> : (
-              <div className="space-y-1">
-                {currencies.map(c => (
-                  <div key={c.code} className="flex items-center justify-between rounded-lg border px-3 py-2">
-                    <span className="text-sm"><span className="font-medium">{c.code}</span> — {c.name}</span>
-                    <button onClick={() => removeCurrency(c.code)} className="text-red hover:text-red/80 text-lg leading-none">&times;</button>
-                  </div>
-                ))}
+      <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} title="Zarzadzaj walutami">
+        <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+          placeholder="Szukaj (np. USD, EUR, funt)..."
+          className="mb-3 w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-primary" autoFocus />
+        <div className="mb-4 max-h-40 overflow-y-auto rounded-lg border">
+          {filtered.slice(0, 20).map(c => (
+            <button key={c.code} onClick={() => addCurrency(c)}
+              disabled={!!currencies.find(x => x.code === c.code)}
+              className={cn('flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-secondary',
+                currencies.find(x => x.code === c.code) && 'opacity-40')}>
+              <span><span className="font-medium">{c.code}</span> — {c.name}</span>
+              {currencies.find(x => x.code === c.code) ? <span className="text-xs text-muted-foreground">dodana</span> : <span className="text-primary">+</span>}
+            </button>
+          ))}
+        </div>
+        <div className="text-xs font-medium text-muted-foreground mb-2">Twoje waluty ({currencies.length})</div>
+        {currencies.length === 0 ? <p className="text-sm text-muted-foreground">Brak — wybierz powyzej</p> : (
+          <div className="space-y-1">
+            {currencies.map(c => (
+              <div key={c.code} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                <span className="text-sm"><span className="font-medium">{c.code}</span> — {c.name}</span>
+                <button onClick={() => removeCurrency(c.code)} className="text-red hover:text-red/80 text-lg leading-none">&times;</button>
               </div>
-            )}
+            ))}
           </div>
-        </div>,
-      document.body)}
+        )}
+      </SettingsModal>
     </Card>
-  );
-}
-
-function TickerCard({ t, active, onSelect }: { t: CurrencyResult; active: string; onSelect: (s: string) => void }) {
-  const isUp = t.change > 0, isDown = t.change < 0;
-  return (
-    <button onClick={() => onSelect(t.code)} className={cn(
-      'rounded-lg border p-3 text-left transition-all',
-      active === t.code ? 'border-primary bg-primary/5 shadow-sm' : 'border-border bg-card hover:border-primary/30 hover:shadow-sm',
-    )}>
-      <div className="text-xs font-medium text-muted-foreground">{t.code}/PLN</div>
-      <div className="mt-1 text-base font-bold text-foreground">
-        {t.error ? '—' : fmtPLN(t.mid)}<span className="ml-1 text-xs font-normal text-muted-foreground">zl</span>
-      </div>
-      <div className={cn('mt-0.5 text-xs font-medium', isUp && 'text-green', isDown && 'text-red', !isUp && !isDown && 'text-muted-foreground')}>
-        {t.error ? '—' : `${isUp ? '+' : ''}${t.change.toFixed(2)}%`}
-      </div>
-    </button>
-  );
-}
-
-function TickerRow({ t, active, onSelect }: { t: CurrencyResult; active: string; onSelect: (s: string) => void }) {
-  const isUp = t.change > 0, isDown = t.change < 0;
-  return (
-    <button onClick={() => onSelect(t.code)} className={cn(
-      'flex items-center justify-between rounded-lg border px-3 py-2 transition-all',
-      active === t.code ? 'border-primary bg-primary/5' : 'border-border bg-card hover:border-primary/30',
-    )}>
-      <span className="text-xs font-medium text-muted-foreground">{t.code}/PLN</span>
-      <span className="text-sm font-bold text-foreground">{t.error ? '—' : `${fmtPLN(t.mid)} zl`}</span>
-      <span className={cn('text-xs font-medium', isUp && 'text-green', isDown && 'text-red', !isUp && !isDown && 'text-muted-foreground')}>
-        {t.error ? '—' : `${isUp ? '+' : ''}${t.change.toFixed(2)}%`}
-      </span>
-    </button>
   );
 }

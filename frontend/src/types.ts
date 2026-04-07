@@ -104,6 +104,11 @@ export interface LayoutItem {
   minH?: number;
 }
 
+export interface ChartPoint {
+  date: string;
+  value: number;
+}
+
 export type Breakpoint = 'lg' | 'md' | 'sm';
 
 export type BreakpointLayouts = Record<Breakpoint, LayoutItem[]>;

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { timeAgo } from '../utils';
 import type { RSSItem } from '../types';
 import Card from './DashboardCard';
 import Loading from './Loading';
+import SettingsModal from './SettingsModal';
 
 export interface RssFeedConfig {
   id: string;
@@ -109,74 +109,47 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
         </div>
       )}
 
-      {showSettings && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowSettings(false)}>
-          <div className="mx-4 w-full max-w-md rounded-xl bg-card p-5 shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Kanaly RSS — {widgetName}</h3>
-              <button onClick={() => setShowSettings(false)} className="text-muted-foreground hover:text-foreground text-xl leading-none">&times;</button>
-            </div>
-
-            {/* Current feeds */}
-            <div className="text-xs font-medium text-muted-foreground mb-2">Twoje kanaly ({feeds.length}/5)</div>
-            {feeds.length === 0 ? (
-              <p className="text-sm text-muted-foreground mb-4">Brak — dodaj kanaly ponizej</p>
-            ) : (
-              <div className="mb-4 space-y-1">
-                {feeds.map(f => (
-                  <div key={f.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
-                    <div>
-                      <div className="text-sm font-medium">{f.name}</div>
-                      <div className="text-xs text-muted-foreground truncate max-w-[280px]">{f.url}</div>
-                      <div className="text-xs text-muted-foreground">Artykulow: {f.articles_count}</div>
-                    </div>
-                    <button onClick={() => handleRemoveFeed(f.id)} className="ml-2 text-red-500 hover:text-red-700 text-lg leading-none">&times;</button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Add feed form */}
-            {feeds.length < 5 && (
-              <div className="border-t pt-3 space-y-2">
-                <div className="text-xs font-medium text-muted-foreground">Dodaj kanal</div>
-                <input
-                  type="text"
-                  value={newName}
-                  onChange={e => setNewName(e.target.value)}
-                  placeholder="Nazwa (np. The Verge AI)"
-                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
-                />
-                <input
-                  type="url"
-                  value={newUrl}
-                  onChange={e => setNewUrl(e.target.value)}
-                  placeholder="URL kanalu RSS"
-                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
-                />
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-muted-foreground whitespace-nowrap">Artykulow:</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={10}
-                    value={newCount}
-                    onChange={e => setNewCount(Math.min(10, Math.max(1, Number(e.target.value))))}
-                    className="w-16 rounded-lg border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
-                  />
-                  <button
-                    onClick={handleAddFeed}
-                    disabled={!newUrl || !newName || adding}
-                    className="ml-auto rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-40"
-                  >
-                    {adding ? '...' : 'Dodaj'}
-                  </button>
+      <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} title={`Kanaly RSS — ${widgetName}`}>
+        <div className="text-xs font-medium text-muted-foreground mb-2">Twoje kanaly ({feeds.length}/5)</div>
+        {feeds.length === 0 ? (
+          <p className="text-sm text-muted-foreground mb-4">Brak — dodaj kanaly ponizej</p>
+        ) : (
+          <div className="mb-4 space-y-1">
+            {feeds.map(f => (
+              <div key={f.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                <div>
+                  <div className="text-sm font-medium">{f.name}</div>
+                  <div className="text-xs text-muted-foreground truncate max-w-[280px]">{f.url}</div>
+                  <div className="text-xs text-muted-foreground">Artykulow: {f.articles_count}</div>
                 </div>
+                <button onClick={() => handleRemoveFeed(f.id)} className="ml-2 text-red-500 hover:text-red-700 text-lg leading-none">&times;</button>
               </div>
-            )}
+            ))}
           </div>
-        </div>,
-      document.body)}
+        )}
+
+        {feeds.length < 5 && (
+          <div className="border-t pt-3 space-y-2">
+            <div className="text-xs font-medium text-muted-foreground">Dodaj kanal</div>
+            <input type="text" value={newName} onChange={e => setNewName(e.target.value)}
+              placeholder="Nazwa (np. The Verge AI)"
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-primary" />
+            <input type="url" value={newUrl} onChange={e => setNewUrl(e.target.value)}
+              placeholder="URL kanalu RSS"
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-primary" />
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-muted-foreground whitespace-nowrap">Artykulow:</label>
+              <input type="number" min={1} max={10} value={newCount}
+                onChange={e => setNewCount(Math.min(10, Math.max(1, Number(e.target.value))))}
+                className="w-16 rounded-lg border bg-background px-2 py-1 text-sm outline-none focus:border-primary" />
+              <button onClick={handleAddFeed} disabled={!newUrl || !newName || adding}
+                className="ml-auto rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-40">
+                {adding ? '...' : 'Dodaj'}
+              </button>
+            </div>
+          </div>
+        )}
+      </SettingsModal>
     </Card>
   );
 }

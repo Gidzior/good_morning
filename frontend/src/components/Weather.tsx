@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { formatTime } from '../utils';
 import type { WeatherResponse, ForecastItem } from '../types';
 import Loading, { ErrorMsg } from './Loading';
+import SettingsModal from './SettingsModal';
 import Card from './DashboardCard';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -239,15 +239,8 @@ export default function Weather({ tick }: { tick: number }) {
         )}
       </Card>
 
-      {showSettings && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowSettings(false)}>
-          <div className="mx-4 w-full max-w-md rounded-xl bg-card p-5 shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Zarzadzaj miastami</h3>
-              <button onClick={() => setShowSettings(false)} className="text-muted-foreground hover:text-foreground text-xl leading-none">&times;</button>
-            </div>
-
-            <input
+      <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} title="Zarzadzaj miastami">
+        <input
               type="text"
               value={query}
               onChange={e => handleSearch(e.target.value)}
@@ -299,9 +292,7 @@ export default function Weather({ tick }: { tick: number }) {
                 ))}
               </div>
             )}
-          </div>
-        </div>,
-      document.body)}
+      </SettingsModal>
     </div>
   );
 }
