@@ -4,6 +4,7 @@ import type { WeatherResponse, ForecastItem } from '../types';
 import Loading, { ErrorMsg } from './Loading';
 import SettingsModal from './SettingsModal';
 import Card from './DashboardCard';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -240,12 +241,12 @@ export default function Weather({ tick }: { tick: number }) {
       </Card>
 
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} title="Zarzadzaj miastami">
-        <input
+        <Input
               type="text"
               value={query}
               onChange={e => handleSearch(e.target.value)}
               placeholder="Szukaj miasta (np. Warszawa, Paris)..."
-              className="mb-3 w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+              className="mb-3"
               autoFocus
             />
             {searching && <p className="mb-2 text-xs text-muted-foreground">Szukam...</p>}

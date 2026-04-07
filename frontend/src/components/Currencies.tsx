@@ -10,6 +10,7 @@ import Card from './DashboardCard';
 import SettingsModal from './SettingsModal';
 import { TickerGrid } from './TickerCards';
 import type { TickerData } from './TickerCards';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 interface CurrencyDef { code: string; name: string }
@@ -167,9 +168,9 @@ export default function Currencies({ tick }: { tick: number }) {
       )}
 
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} title="Zarzadzaj walutami">
-        <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+        <Input type="text" value={query} onChange={e => setQuery(e.target.value)}
           placeholder="Szukaj (np. USD, EUR, funt)..."
-          className="mb-3 w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-primary" autoFocus />
+          className="mb-3" autoFocus />
         <div className="mb-4 max-h-40 overflow-y-auto rounded-lg border">
           {filtered.slice(0, 20).map(c => (
             <button key={c.code} onClick={() => addCurrency(c)}

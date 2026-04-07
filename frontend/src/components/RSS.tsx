@@ -3,6 +3,7 @@ import { timeAgo } from '../utils';
 import type { RSSItem } from '../types';
 import Card from './DashboardCard';
 import Loading from './Loading';
+import { Input } from '@/components/ui/input';
 import SettingsModal from './SettingsModal';
 
 export interface RssFeedConfig {
@@ -131,17 +132,15 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
         {feeds.length < 5 && (
           <div className="border-t pt-3 space-y-2">
             <div className="text-xs font-medium text-muted-foreground">Dodaj kanal</div>
-            <input type="text" value={newName} onChange={e => setNewName(e.target.value)}
-              placeholder="Nazwa (np. The Verge AI)"
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-primary" />
-            <input type="url" value={newUrl} onChange={e => setNewUrl(e.target.value)}
-              placeholder="URL kanalu RSS"
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-primary" />
+            <Input type="text" value={newName} onChange={e => setNewName(e.target.value)}
+              placeholder="Nazwa (np. The Verge AI)" />
+            <Input type="url" value={newUrl} onChange={e => setNewUrl(e.target.value)}
+              placeholder="URL kanalu RSS" />
             <div className="flex items-center gap-2">
               <label className="text-xs text-muted-foreground whitespace-nowrap">Artykulow:</label>
-              <input type="number" min={1} max={10} value={newCount}
+              <Input type="number" min={1} max={10} value={newCount}
                 onChange={e => setNewCount(Math.min(10, Math.max(1, Number(e.target.value))))}
-                className="w-16 rounded-lg border bg-background px-2 py-1 text-sm outline-none focus:border-primary" />
+                className="w-16" />
               <button onClick={handleAddFeed} disabled={!newUrl || !newName || adding}
                 className="ml-auto rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-40">
                 {adding ? '...' : 'Dodaj'}

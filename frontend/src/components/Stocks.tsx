@@ -10,6 +10,7 @@ import Card from './DashboardCard';
 import SettingsModal from './SettingsModal';
 import { TickerGrid } from './TickerCards';
 import type { TickerData } from './TickerCards';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 interface StockDef { symbol: string; name: string }
@@ -179,9 +180,9 @@ export default function Stocks({ tick }: { tick: number }) {
       )}
 
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} title="Zarzadzaj spolkami">
-        <input type="text" value={query} onChange={e => handleSearch(e.target.value)}
+        <Input type="text" value={query} onChange={e => handleSearch(e.target.value)}
           placeholder="Szukaj spolki (np. orlen, allegro)..."
-          className="mb-3 w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-primary" autoFocus />
+          className="mb-3" autoFocus />
         {searching && <p className="mb-2 text-xs text-muted-foreground">Szukam...</p>}
         {searchResults.length > 0 && (
           <div className="mb-4 max-h-40 overflow-y-auto rounded-lg border">
