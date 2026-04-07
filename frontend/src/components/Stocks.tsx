@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { AreaChart, Area, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import type { ChartConfig } from '@/components/ui/chart';
@@ -217,7 +218,7 @@ export default function Stocks({ tick }: { tick: number }) {
       )}
 
       {/* Settings modal */}
-      {showSettings && (
+      {showSettings && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowSettings(false)}>
           <div className="mx-4 w-full max-w-md rounded-xl bg-card p-5 shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
@@ -273,8 +274,8 @@ export default function Stocks({ tick }: { tick: number }) {
               </div>
             )}
           </div>
-        </div>
-      )}
+        </div>,
+      document.body)}
     </Card>
   );
 }
