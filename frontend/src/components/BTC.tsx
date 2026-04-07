@@ -155,7 +155,7 @@ export default function BTC({ tick }: { tick: number }) {
         </div>
 
         {/* Chart */}
-        <div className="h-[200px] w-full">
+        <div className="h-[190px] w-full">
           {chartLoading ? (
             <div className="flex h-full items-center justify-center">
               <Loading text="Ladowanie wykresu..." />
