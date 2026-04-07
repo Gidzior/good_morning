@@ -6,7 +6,7 @@ import fetch, { Response } from 'node-fetch';
 import RSSParser from 'rss-parser';
 import { google } from 'googleapis';
 import authRouter, { requireAuth, getOAuth2ClientForUser } from './auth';
-import { getCalendarPrefs, saveCalendarPrefs, getLayout, saveLayout } from './db';
+import { getCalendarPrefs, saveCalendarPrefs, getLayout, saveLayout, getUserStocks, addUserStock, deleteUserStock } from './db';
 
 const app = express();
 const PORT = 3001;
@@ -218,6 +218,41 @@ app.get('/api/stock/:symbol/history', async (req, res) => {
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
     res.status(500).json({ error: msg });
+  }
+});
+
+// --- API: User stocks CRUD ---
+app.get('/api/user-stocks', (req, res) => {
+  const stocks = getUserStocks(req.user!.user_id);
+  res.json(stocks);
+});
+
+app.post('/api/user-stocks', (req, res) => {
+  const { symbol, name } = req.body as { symbol: string; name: string };
+  if (!symbol || !name) return res.status(400).json({ error: 'symbol and name required' });
+  addUserStock(req.user!.user_id, symbol, name);
+  res.json({ ok: true });
+});
+
+app.delete('/api/user-stocks/:symbol', (req, res) => {
+  deleteUserStock(req.user!.user_id, req.params.symbol);
+  res.json({ ok: true });
+});
+
+// --- API: Stock search (Yahoo Finance) ---
+app.get('/api/stocks/search', async (req, res) => {
+  const q = req.query.q as string;
+  if (!q || q.length < 2) return res.json([]);
+  try {
+    const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=10&newsCount=0&region=PL`;
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const data = await r.json() as { quotes?: { symbol: string; shortname?: string; longname?: string; exchange?: string; exchDisp?: string }[] };
+    const results = (data.quotes || [])
+      .filter(q => q.symbol?.endsWith('.WA'))
+      .map(q => ({ symbol: q.symbol, name: q.longname || q.shortname || q.symbol }));
+    res.json(results);
+  } catch {
+    res.json([]);
   }
 });
 

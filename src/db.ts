@@ -55,6 +55,14 @@ db.exec(`
     updated_at TEXT DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS user_stocks (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    symbol TEXT NOT NULL,
+    name TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, symbol)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
 `);
@@ -119,6 +127,13 @@ const stmts = {
   `),
 
   getLayout: db.prepare(`SELECT layout_json FROM user_layouts WHERE user_id = ?`),
+
+  getUserStocks: db.prepare(`SELECT symbol, name FROM user_stocks WHERE user_id = ? ORDER BY sort_order`),
+  addUserStock: db.prepare(`
+    INSERT OR IGNORE INTO user_stocks (user_id, symbol, name, sort_order)
+    VALUES (@user_id, @symbol, @name, (SELECT COALESCE(MAX(sort_order),0)+1 FROM user_stocks WHERE user_id = @user_id))
+  `),
+  deleteUserStock: db.prepare(`DELETE FROM user_stocks WHERE user_id = ? AND symbol = ?`),
 };
 
 // --- Public API ---
@@ -234,6 +249,18 @@ export function getLayout(userId: string): unknown | null {
 
 export function saveLayout(userId: string, layout: unknown): void {
   stmts.upsertLayout.run(userId, JSON.stringify(layout));
+}
+
+export function getUserStocks(userId: string): { symbol: string; name: string }[] {
+  return stmts.getUserStocks.all(userId) as { symbol: string; name: string }[];
+}
+
+export function addUserStock(userId: string, symbol: string, name: string): void {
+  stmts.addUserStock.run({ user_id: userId, symbol, name });
+}
+
+export function deleteUserStock(userId: string, symbol: string): void {
+  stmts.deleteUserStock.run(userId, symbol);
 }
 
 // Cleanup expired sessions on startup
