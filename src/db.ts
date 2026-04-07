@@ -55,6 +55,22 @@ db.exec(`
     updated_at TEXT DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS user_cryptos (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    symbol TEXT NOT NULL,
+    name TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, symbol)
+  );
+
+  CREATE TABLE IF NOT EXISTS user_currencies (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, code)
+  );
+
   CREATE TABLE IF NOT EXISTS user_stocks (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     symbol TEXT NOT NULL,
@@ -63,8 +79,27 @@ db.exec(`
     PRIMARY KEY (user_id, symbol)
   );
 
+  CREATE TABLE IF NOT EXISTS user_rss_widgets (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS user_rss_feeds (
+    id TEXT PRIMARY KEY,
+    widget_id TEXT NOT NULL REFERENCES user_rss_widgets(id) ON DELETE CASCADE,
+    url TEXT NOT NULL,
+    name TEXT NOT NULL,
+    articles_count INTEGER NOT NULL DEFAULT 3,
+    sort_order INTEGER NOT NULL DEFAULT 0
+  );
+
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+  CREATE INDEX IF NOT EXISTS idx_rss_widgets_user ON user_rss_widgets(user_id);
+  CREATE INDEX IF NOT EXISTS idx_rss_feeds_widget ON user_rss_feeds(widget_id);
 `);
 
 // --- Prepared statements ---
@@ -128,12 +163,41 @@ const stmts = {
 
   getLayout: db.prepare(`SELECT layout_json FROM user_layouts WHERE user_id = ?`),
 
+  getUserCryptos: db.prepare(`SELECT symbol, name FROM user_cryptos WHERE user_id = ? ORDER BY sort_order`),
+  addUserCrypto: db.prepare(`
+    INSERT OR IGNORE INTO user_cryptos (user_id, symbol, name, sort_order)
+    VALUES (@user_id, @symbol, @name, (SELECT COALESCE(MAX(sort_order),0)+1 FROM user_cryptos WHERE user_id = @user_id))
+  `),
+  deleteUserCrypto: db.prepare(`DELETE FROM user_cryptos WHERE user_id = ? AND symbol = ?`),
+
+  getUserCurrencies: db.prepare(`SELECT code, name FROM user_currencies WHERE user_id = ? ORDER BY sort_order`),
+  addUserCurrency: db.prepare(`
+    INSERT OR IGNORE INTO user_currencies (user_id, code, name, sort_order)
+    VALUES (@user_id, @code, @name, (SELECT COALESCE(MAX(sort_order),0)+1 FROM user_currencies WHERE user_id = @user_id))
+  `),
+  deleteUserCurrency: db.prepare(`DELETE FROM user_currencies WHERE user_id = ? AND code = ?`),
+
   getUserStocks: db.prepare(`SELECT symbol, name FROM user_stocks WHERE user_id = ? ORDER BY sort_order`),
   addUserStock: db.prepare(`
     INSERT OR IGNORE INTO user_stocks (user_id, symbol, name, sort_order)
     VALUES (@user_id, @symbol, @name, (SELECT COALESCE(MAX(sort_order),0)+1 FROM user_stocks WHERE user_id = @user_id))
   `),
   deleteUserStock: db.prepare(`DELETE FROM user_stocks WHERE user_id = ? AND symbol = ?`),
+
+  getRssWidgets: db.prepare(`SELECT id, name, sort_order FROM user_rss_widgets WHERE user_id = ? ORDER BY sort_order`),
+  createRssWidget: db.prepare(`
+    INSERT INTO user_rss_widgets (id, user_id, name, sort_order)
+    VALUES (@id, @user_id, @name, (SELECT COALESCE(MAX(sort_order),0)+1 FROM user_rss_widgets WHERE user_id = @user_id))
+  `),
+  updateRssWidget: db.prepare(`UPDATE user_rss_widgets SET name = ? WHERE id = ? AND user_id = ?`),
+  deleteRssWidget: db.prepare(`DELETE FROM user_rss_widgets WHERE id = ? AND user_id = ?`),
+  getRssFeeds: db.prepare(`SELECT id, url, name, articles_count FROM user_rss_feeds WHERE widget_id = ? ORDER BY sort_order`),
+  addRssFeed: db.prepare(`
+    INSERT INTO user_rss_feeds (id, widget_id, url, name, articles_count, sort_order)
+    VALUES (@id, @widget_id, @url, @name, @articles_count, (SELECT COALESCE(MAX(sort_order),0)+1 FROM user_rss_feeds WHERE widget_id = @widget_id))
+  `),
+  deleteRssFeed: db.prepare(`DELETE FROM user_rss_feeds WHERE id = ? AND widget_id = ?`),
+  countRssFeeds: db.prepare(`SELECT COUNT(*) as cnt FROM user_rss_feeds WHERE widget_id = ?`),
 };
 
 // --- Public API ---
@@ -251,6 +315,26 @@ export function saveLayout(userId: string, layout: unknown): void {
   stmts.upsertLayout.run(userId, JSON.stringify(layout));
 }
 
+export function getUserCryptos(userId: string): { symbol: string; name: string }[] {
+  return stmts.getUserCryptos.all(userId) as { symbol: string; name: string }[];
+}
+export function addUserCrypto(userId: string, symbol: string, name: string): void {
+  stmts.addUserCrypto.run({ user_id: userId, symbol, name });
+}
+export function deleteUserCrypto(userId: string, symbol: string): void {
+  stmts.deleteUserCrypto.run(userId, symbol);
+}
+
+export function getUserCurrencies(userId: string): { code: string; name: string }[] {
+  return stmts.getUserCurrencies.all(userId) as { code: string; name: string }[];
+}
+export function addUserCurrency(userId: string, code: string, name: string): void {
+  stmts.addUserCurrency.run({ user_id: userId, code, name });
+}
+export function deleteUserCurrency(userId: string, code: string): void {
+  stmts.deleteUserCurrency.run(userId, code);
+}
+
 export function getUserStocks(userId: string): { symbol: string; name: string }[] {
   return stmts.getUserStocks.all(userId) as { symbol: string; name: string }[];
 }
@@ -261,6 +345,44 @@ export function addUserStock(userId: string, symbol: string, name: string): void
 
 export function deleteUserStock(userId: string, symbol: string): void {
   stmts.deleteUserStock.run(userId, symbol);
+}
+
+// --- RSS Widgets ---
+export interface RssWidget { id: string; name: string; sort_order: number; feeds: RssFeed[]; }
+export interface RssFeed { id: string; url: string; name: string; articles_count: number; }
+
+export function getRssWidgets(userId: string): RssWidget[] {
+  const widgets = stmts.getRssWidgets.all(userId) as { id: string; name: string; sort_order: number }[];
+  return widgets.map(w => ({
+    ...w,
+    feeds: stmts.getRssFeeds.all(w.id) as RssFeed[],
+  }));
+}
+
+export function createRssWidget(userId: string, name: string): RssWidget {
+  const id = uuidv4();
+  stmts.createRssWidget.run({ id, user_id: userId, name });
+  return { id, name, sort_order: 0, feeds: [] };
+}
+
+export function updateRssWidget(userId: string, widgetId: string, name: string): void {
+  stmts.updateRssWidget.run(name, widgetId, userId);
+}
+
+export function deleteRssWidget(userId: string, widgetId: string): void {
+  stmts.deleteRssWidget.run(widgetId, userId);
+}
+
+export function addRssFeed(widgetId: string, url: string, name: string, articlesCount: number): RssFeed {
+  const cnt = (stmts.countRssFeeds.get(widgetId) as { cnt: number }).cnt;
+  if (cnt >= 5) throw new Error('Max 5 feeds per widget');
+  const id = uuidv4();
+  stmts.addRssFeed.run({ id, widget_id: widgetId, url, name, articles_count: articlesCount });
+  return { id, url, name, articles_count: articlesCount };
+}
+
+export function deleteRssFeed(widgetId: string, feedId: string): void {
+  stmts.deleteRssFeed.run(feedId, widgetId);
 }
 
 // Cleanup expired sessions on startup

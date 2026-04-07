@@ -104,4 +104,4 @@ export interface LayoutItem {
   minH?: number;
 }
 
-export type WidgetId = 'weather' | 'quote' | 'calendar' | 'btc' | 'stocks' | 'news' | 'rss';
+export type WidgetId = 'weather' | 'quote' | 'calendar' | 'crypto' | 'currencies' | 'stocks' | `rss-${string}`;

@@ -16,7 +16,6 @@ import {
   CalendarIcon,
   TrendingUpIcon,
   BarChart3Icon,
-  NewspaperIcon,
   RssIcon,
   QuoteIcon,
   RefreshCwIcon,
@@ -24,6 +23,7 @@ import {
   UserIcon,
   LayoutGridIcon,
   RotateCcwIcon,
+  PlusIcon,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
@@ -35,6 +35,7 @@ interface AppSidebarProps {
   editMode?: boolean;
   onToggleEdit?: () => void;
   onResetLayout?: () => void;
+  onAddRss?: () => void;
 }
 
 const NAV_ITEMS = [
@@ -43,11 +44,10 @@ const NAV_ITEMS = [
   { icon: CalendarIcon, label: 'Kalendarz' },
   { icon: TrendingUpIcon, label: 'Kursy walut' },
   { icon: BarChart3Icon, label: 'Gielda' },
-  { icon: NewspaperIcon, label: 'Wiadomosci' },
   { icon: RssIcon, label: 'RSS' },
 ] as const;
 
-export default function AppSidebar({ lastUpdate, countdown, onRefresh, onAccount, editMode, onToggleEdit, onResetLayout }: AppSidebarProps) {
+export default function AppSidebar({ lastUpdate, countdown, onRefresh, onAccount, editMode, onToggleEdit, onResetLayout, onAddRss }: AppSidebarProps) {
   const { user, logout } = useAuth();
 
   const fmtTime = (d: Date) =>
@@ -82,6 +82,14 @@ export default function AppSidebar({ lastUpdate, countdown, onRefresh, onAccount
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              {onAddRss && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton tooltip="Dodaj widget RSS" onClick={onAddRss}>
+                    <PlusIcon className="h-4 w-4" />
+                    <span>Dodaj RSS</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

@@ -1,18 +1,16 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { timeAgo } from '../utils';
 import type { RSSItem } from '../types';
 import Card from './DashboardCard';
 import Loading from './Loading';
 
-const AI_FEEDS = [
-  { name: 'The Verge AI', url: 'https://www.theverge.com/rss/ai-artificial-intelligence/index.xml' },
-  { name: 'MIT Tech Review', url: 'https://www.technologyreview.com/topic/artificial-intelligence/feed' },
-  { name: 'OpenAI Blog', url: 'https://openai.com/blog/rss.xml' },
-  { name: 'Anthropic', url: 'https://www.anthropic.com/rss.xml' },
-  { name: 'AI News', url: 'https://www.artificialintelligence-news.com/feed/' },
-];
-
-const ARTICLES_PER_FEED = 3;
+export interface RssFeedConfig {
+  id: string;
+  url: string;
+  name: string;
+  articles_count: number;
+}
 
 interface Article {
   title: string;
@@ -21,18 +19,33 @@ interface Article {
   source: string;
 }
 
-export default function RSS({ tick }: { tick: number }) {
+interface RSSProps {
+  widgetId: string;
+  widgetName: string;
+  feeds: RssFeedConfig[];
+  tick: number;
+  onFeedsChanged: () => void;
+}
+
+export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged }: RSSProps) {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const [newUrl, setNewUrl] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newCount, setNewCount] = useState(3);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
+    if (feeds.length === 0) { setArticles([]); setLoading(false); return; }
+    setLoading(true);
     Promise.all(
-      AI_FEEDS.map(async (feed) => {
+      feeds.map(async (feed) => {
         try {
           const res = await fetch(`/api/rss?url=${encodeURIComponent(feed.url)}`);
           const data = await res.json();
           return (data.items || [])
-            .slice(0, ARTICLES_PER_FEED)
+            .slice(0, feed.articles_count)
             .map((item: RSSItem) => ({
               title: item.title || '',
               link: item.link || '#',
@@ -44,33 +57,126 @@ export default function RSS({ tick }: { tick: number }) {
         }
       })
     ).then(results => {
-      const all = results
-        .flat()
-        .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+      const all = results.flat().sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
       setArticles(all);
       setLoading(false);
     });
-  }, [tick]);
+  }, [tick, feeds]);
+
+  const handleAddFeed = async () => {
+    if (!newUrl || !newName) return;
+    setAdding(true);
+    try {
+      await fetch(`/api/rss-widgets/${widgetId}/feeds`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: newUrl, name: newName, articles_count: newCount }),
+      });
+      setNewUrl(''); setNewName(''); setNewCount(3);
+      onFeedsChanged();
+    } catch { /* */ }
+    setAdding(false);
+  };
+
+  const handleRemoveFeed = async (feedId: string) => {
+    await fetch(`/api/rss-widgets/${widgetId}/feeds/${feedId}`, { method: 'DELETE' });
+    onFeedsChanged();
+  };
 
   return (
-    <Card icon="🤖" title="AI News">
+    <Card icon="📡" title={widgetName} onSettings={() => setShowSettings(true)}>
       {loading ? (
-        <Loading text="Ladowanie wiadomosci AI..." />
+        <Loading text="Ladowanie RSS..." />
+      ) : feeds.length === 0 ? (
+        <div className="text-sm text-muted-foreground py-4 text-center">
+          Brak kanalow RSS. Kliknij <button onClick={() => setShowSettings(true)} className="text-primary underline">⚙ ustawienia</button> zeby dodac.
+        </div>
       ) : articles.length === 0 ? (
-        <div className="error-msg">Nie udalo sie pobrac wiadomosci AI</div>
+        <div className="text-sm text-muted-foreground">Brak artykulow</div>
       ) : (
-        <div className="news-scroll">
+        <div className="space-y-3">
           {articles.map((a, i) => (
-            <div className="article" key={i}>
-              <a href={a.link} target="_blank" rel="noopener noreferrer">{a.title}</a>
-              <div className="meta">
-                <span className="source">{a.source}</span>
+            <div key={i} className="border-b border-border pb-2 last:border-0">
+              <a href={a.link} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-foreground hover:text-primary transition-colors line-clamp-2">
+                {a.title}
+              </a>
+              <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="font-medium text-primary/70">{a.source}</span>
                 <span>{a.pubDate ? timeAgo(a.pubDate) : ''}</span>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {showSettings && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowSettings(false)}>
+          <div className="mx-4 w-full max-w-md rounded-xl bg-card p-5 shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Kanaly RSS — {widgetName}</h3>
+              <button onClick={() => setShowSettings(false)} className="text-muted-foreground hover:text-foreground text-xl leading-none">&times;</button>
+            </div>
+
+            {/* Current feeds */}
+            <div className="text-xs font-medium text-muted-foreground mb-2">Twoje kanaly ({feeds.length}/5)</div>
+            {feeds.length === 0 ? (
+              <p className="text-sm text-muted-foreground mb-4">Brak — dodaj kanaly ponizej</p>
+            ) : (
+              <div className="mb-4 space-y-1">
+                {feeds.map(f => (
+                  <div key={f.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                    <div>
+                      <div className="text-sm font-medium">{f.name}</div>
+                      <div className="text-xs text-muted-foreground truncate max-w-[280px]">{f.url}</div>
+                      <div className="text-xs text-muted-foreground">Artykulow: {f.articles_count}</div>
+                    </div>
+                    <button onClick={() => handleRemoveFeed(f.id)} className="ml-2 text-red-500 hover:text-red-700 text-lg leading-none">&times;</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add feed form */}
+            {feeds.length < 5 && (
+              <div className="border-t pt-3 space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Dodaj kanal</div>
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  placeholder="Nazwa (np. The Verge AI)"
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+                <input
+                  type="url"
+                  value={newUrl}
+                  onChange={e => setNewUrl(e.target.value)}
+                  placeholder="URL kanalu RSS"
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                />
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-muted-foreground whitespace-nowrap">Artykulow:</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={newCount}
+                    onChange={e => setNewCount(Math.min(10, Math.max(1, Number(e.target.value))))}
+                    className="w-16 rounded-lg border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
+                  />
+                  <button
+                    onClick={handleAddFeed}
+                    disabled={!newUrl || !newName || adding}
+                    className="ml-auto rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-40"
+                  >
+                    {adding ? '...' : 'Dodaj'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>,
+      document.body)}
     </Card>
   );
 }
