@@ -104,26 +104,23 @@ Przed commitem: `lint && build` musza przejsc.
 
 ## Production Deployment Plan (TODO)
 
+> Hosting: **publiczny VPS** (nie Synology NAS) — Google OAuth wymaga publicznego redirect_uri.
+
 ### Faza 1: Security hardening (BLOCKER przed deploy)
 1. `/auth/dev-login` — usunac lub zamienic na `NODE_ENV !== 'production'` (src/auth.ts)
 2. Cookie `secure: true` w produkcji — wzorzec: `secure: process.env.NODE_ENV === 'production'`
-3. HTTPS — reverse proxy (Caddy/nginx) z auto-SSL lub Tailscale HTTPS (*.ts.net)
+3. HTTPS — reverse proxy (Caddy/nginx) z auto-SSL
 4. Rate limiting — `express-rate-limit` (/auth: 10 req/min, /api: 60 req/min)
 5. CSRF — sprawdzac Origin header lub SameSite=Strict na cookie
 6. SESSION_SECRET — silny (32+ znaków) w .env produkcyjnym
 
-### Faza 2: Docker (Synology DS725+)
+### Faza 2: Docker (VPS)
 7. Dockerfile multi-stage: build frontend → production backend + static serve
-8. docker-compose.yml: port 3001, volume data/ (SQLite) + .env, restart: unless-stopped
-9. Google OAuth redirect URI — zmienic na produkcyjny URL w Google Cloud Console
-10. BASE_URL w .env — ustawic na produkcyjny (np. `https://dashboard.ts.net`)
+8. docker-compose.yml: volume data/ (SQLite) + .env, restart: unless-stopped
+9. Google OAuth redirect URI — ustawic na produkcyjny publiczny URL w Google Cloud Console
+10. BASE_URL w .env — ustawic na produkcyjny publiczny URL
 
-### Faza 3: Tailscale
-11. Tailscale na Synology — zainstalowac pakiet, polaczyc z tailnet
-12. Tailscale HTTPS — `tailscale cert dashboard.synology-name.ts.net`
-13. Opcjonalnie: Tailscale Funnel dla dostepu publicznego bez VPN
-
-### Faza 4: Opcjonalne
-14. Health check endpoint — GET /api/health (bez auth)
-15. Structured logging (pino/winston)
-16. SQLite backup cron na Synology
+### Faza 3: Opcjonalne
+11. Health check endpoint — GET /api/health (bez auth)
+12. Structured logging (pino/winston)
+13. SQLite backup cron
