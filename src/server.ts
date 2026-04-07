@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
+import type { Request } from 'express';
 import cookieParser from 'cookie-parser';
 import path from 'path';
 import fetch, { Response } from 'node-fetch';
@@ -7,6 +8,16 @@ import RSSParser from 'rss-parser';
 import { google } from 'googleapis';
 import authRouter, { requireAuth, getOAuth2ClientForUser } from './auth';
 import { getCalendarPrefs, saveCalendarPrefs, getLayout, saveLayout, getUserStocks, addUserStock, deleteUserStock, getUserCryptos, addUserCrypto, deleteUserCrypto, getUserCurrencies, addUserCurrency, deleteUserCurrency, getRssWidgets, createRssWidget, updateRssWidget, deleteRssWidget, addRssFeed, deleteRssFeed, getUserCities, addUserCity, deleteUserCity } from './db';
+
+/** Extract authenticated user ID — safe after requireAuth middleware */
+function userId(req: Request): string {
+  return req.user!.user_id;
+}
+
+/** Extract error message from unknown catch value */
+function errMsg(e: unknown): string {
+  return e instanceof Error ? e.message : 'Unknown error';
+}
 
 const app = express();
 const PORT = 3001;
@@ -27,18 +38,29 @@ interface NbpTable {
   rates: NbpRate[];
 }
 
-// --- Simple in-memory cache with TTL ---
+// --- Simple in-memory cache with TTL and max size ---
 interface CacheEntry<T> {
   data: T;
   expires: number;
 }
 
+const MAX_CACHE_SIZE = 200;
 const cache = new Map<string, CacheEntry<unknown>>();
 
 function cached<T>(key: string, ttlMs: number, fetcher: () => Promise<T>): Promise<T> {
   const entry = cache.get(key) as CacheEntry<T> | undefined;
-  if (entry && Date.now() < entry.expires) return Promise.resolve(entry.data);
+  if (entry && Date.now() < entry.expires) {
+    // Move to end for LRU ordering
+    cache.delete(key);
+    cache.set(key, entry);
+    return Promise.resolve(entry.data);
+  }
   return fetcher().then(data => {
+    // Evict oldest entries if at capacity
+    if (cache.size >= MAX_CACHE_SIZE) {
+      const oldest = cache.keys().next().value;
+      if (oldest !== undefined) cache.delete(oldest);
+    }
     cache.set(key, { data, expires: Date.now() + ttlMs });
     return data;
   });
@@ -57,20 +79,20 @@ app.use('/api', requireAuth);
 
 // --- API: User cities CRUD ---
 app.get('/api/user-cities', (req, res) => {
-  res.json(getUserCities(req.user!.user_id));
+  res.json(getUserCities(userId(req)));
 });
 
 app.post('/api/user-cities', (req, res) => {
   const { lat, lon, name, country } = req.body as { lat: number; lon: number; name: string; country: string };
   if (!name || lat == null || lon == null) return res.status(400).json({ error: 'lat, lon, name required' });
-  addUserCity(req.user!.user_id, lat, lon, name, country || '');
+  addUserCity(userId(req), lat, lon, name, country || '');
   res.json({ ok: true });
 });
 
 app.delete('/api/user-cities', (req, res) => {
   const { lat, lon } = req.body as { lat: number; lon: number };
   if (lat == null || lon == null) return res.status(400).json({ error: 'lat and lon required' });
-  deleteUserCity(req.user!.user_id, lat, lon);
+  deleteUserCity(userId(req), lat, lon);
   res.json({ ok: true });
 });
 
@@ -90,7 +112,8 @@ app.get('/api/cities/search', async (req, res) => {
       lat: Math.round(c.lat * 10000) / 10000,
       lon: Math.round(c.lon * 10000) / 10000,
     })));
-  } catch {
+  } catch (e) {
+    console.error('City search error:', errMsg(e));
     res.json([]);
   }
 });
@@ -118,7 +141,7 @@ app.get('/api/weather', async (req, res) => {
     ]);
     res.json({ current, forecast, city: lat ? '' : city, country: lat ? '' : country });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Unknown error';
+    const msg = errMsg(e);
     res.status(500).json({ error: msg });
   }
 });
@@ -130,7 +153,7 @@ app.get('/api/btc', async (_req, res) => {
     const data = await r.json();
     res.json(data);
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Unknown error';
+    const msg = errMsg(e);
     res.status(500).json({ error: msg });
   }
 });
@@ -160,7 +183,7 @@ app.get('/api/currencies', async (_req, res) => {
 
     res.json(result);
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Unknown error';
+    const msg = errMsg(e);
     res.status(500).json({ error: msg });
   }
 });
@@ -182,7 +205,7 @@ app.get('/api/currencies/history/:code', async (req, res) => {
     });
     res.json(points);
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Unknown error';
+    const msg = errMsg(e);
     res.status(500).json({ error: msg });
   }
 });
@@ -207,7 +230,7 @@ app.get('/api/btc/history', async (_req, res) => {
     });
     res.json(result);
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Unknown error';
+    const msg = errMsg(e);
     res.status(500).json({ error: msg });
   }
 });
@@ -222,7 +245,7 @@ app.get('/api/stock/:symbol', async (req, res) => {
     const data = await r.json();
     res.json(data);
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Unknown error';
+    const msg = errMsg(e);
     res.status(500).json({ error: msg });
   }
 });
@@ -262,23 +285,23 @@ app.get('/api/stock/:symbol/history', async (req, res) => {
     });
     res.json(points);
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Unknown error';
+    const msg = errMsg(e);
     res.status(500).json({ error: msg });
   }
 });
 
 // --- API: User cryptos CRUD ---
 app.get('/api/user-cryptos', (req, res) => {
-  res.json(getUserCryptos(req.user!.user_id));
+  res.json(getUserCryptos(userId(req)));
 });
 app.post('/api/user-cryptos', (req, res) => {
   const { symbol, name } = req.body as { symbol: string; name: string };
   if (!symbol || !name) return res.status(400).json({ error: 'symbol and name required' });
-  addUserCrypto(req.user!.user_id, symbol, name);
+  addUserCrypto(userId(req), symbol, name);
   res.json({ ok: true });
 });
 app.delete('/api/user-cryptos/:symbol', (req, res) => {
-  deleteUserCrypto(req.user!.user_id, req.params.symbol);
+  deleteUserCrypto(userId(req), req.params.symbol);
   res.json({ ok: true });
 });
 
@@ -294,7 +317,8 @@ app.get('/api/cryptos/available', async (_req, res) => {
         .sort((a, b) => a.symbol.localeCompare(b.symbol));
     });
     res.json(data);
-  } catch {
+  } catch (e) {
+    console.error('Zonda pairs error:', errMsg(e));
     res.json([]);
   }
 });
@@ -306,7 +330,7 @@ app.get('/api/crypto/:symbol', async (req, res) => {
     const data = await r.json();
     res.json(data);
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Unknown error';
+    const msg = errMsg(e);
     res.status(500).json({ error: msg });
   }
 });
@@ -336,23 +360,24 @@ app.get('/api/crypto/:symbol/history', async (req, res) => {
       return Array.from(byDate, ([date, value]) => ({ date, value }));
     });
     res.json(result);
-  } catch {
+  } catch (e) {
+    console.error('Crypto history error:', errMsg(e));
     res.json([]);
   }
 });
 
 // --- API: User currencies CRUD ---
 app.get('/api/user-currencies', (req, res) => {
-  res.json(getUserCurrencies(req.user!.user_id));
+  res.json(getUserCurrencies(userId(req)));
 });
 app.post('/api/user-currencies', (req, res) => {
   const { code, name } = req.body as { code: string; name: string };
   if (!code || !name) return res.status(400).json({ error: 'code and name required' });
-  addUserCurrency(req.user!.user_id, code, name);
+  addUserCurrency(userId(req), code, name);
   res.json({ ok: true });
 });
 app.delete('/api/user-currencies/:code', (req, res) => {
-  deleteUserCurrency(req.user!.user_id, req.params.code);
+  deleteUserCurrency(userId(req), req.params.code);
   res.json({ ok: true });
 });
 
@@ -365,7 +390,8 @@ app.get('/api/currencies/available', async (_req, res) => {
       return (j[0]?.rates || []).map(r => ({ code: r.code, name: r.currency }));
     });
     res.json(data);
-  } catch {
+  } catch (e) {
+    console.error('NBP currencies error:', errMsg(e));
     res.json([]);
   }
 });
@@ -380,26 +406,26 @@ app.get('/api/currency/:code', async (req, res) => {
     const prev = rates.length > 1 ? rates[rates.length - 2] : null;
     res.json({ code: data.code, currency: data.currency, mid: current?.mid || 0, prev: prev?.mid || undefined });
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Unknown error';
+    const msg = errMsg(e);
     res.status(500).json({ error: msg });
   }
 });
 
 // --- API: User stocks CRUD ---
 app.get('/api/user-stocks', (req, res) => {
-  const stocks = getUserStocks(req.user!.user_id);
+  const stocks = getUserStocks(userId(req));
   res.json(stocks);
 });
 
 app.post('/api/user-stocks', (req, res) => {
   const { symbol, name } = req.body as { symbol: string; name: string };
   if (!symbol || !name) return res.status(400).json({ error: 'symbol and name required' });
-  addUserStock(req.user!.user_id, symbol, name);
+  addUserStock(userId(req), symbol, name);
   res.json({ ok: true });
 });
 
 app.delete('/api/user-stocks/:symbol', (req, res) => {
-  deleteUserStock(req.user!.user_id, req.params.symbol);
+  deleteUserStock(userId(req), req.params.symbol);
   res.json({ ok: true });
 });
 
@@ -415,32 +441,33 @@ app.get('/api/stocks/search', async (req, res) => {
       .filter(q => q.symbol?.endsWith('.WA'))
       .map(q => ({ symbol: q.symbol, name: q.longname || q.shortname || q.symbol }));
     res.json(results);
-  } catch {
+  } catch (e) {
+    console.error('Stock search error:', errMsg(e));
     res.json([]);
   }
 });
 
 // --- API: RSS Widgets CRUD ---
 app.get('/api/rss-widgets', (req, res) => {
-  res.json(getRssWidgets(req.user!.user_id));
+  res.json(getRssWidgets(userId(req)));
 });
 
 app.post('/api/rss-widgets', (req, res) => {
   const { name } = req.body as { name: string };
   if (!name) return res.status(400).json({ error: 'name required' });
-  const widget = createRssWidget(req.user!.user_id, name);
+  const widget = createRssWidget(userId(req), name);
   res.json(widget);
 });
 
 app.put('/api/rss-widgets/:id', (req, res) => {
   const { name } = req.body as { name: string };
   if (!name) return res.status(400).json({ error: 'name required' });
-  updateRssWidget(req.user!.user_id, req.params.id, name);
+  updateRssWidget(userId(req), req.params.id, name);
   res.json({ ok: true });
 });
 
 app.delete('/api/rss-widgets/:id', (req, res) => {
-  deleteRssWidget(req.user!.user_id, req.params.id);
+  deleteRssWidget(userId(req), req.params.id);
   res.json({ ok: true });
 });
 
@@ -452,7 +479,7 @@ app.post('/api/rss-widgets/:id/feeds', (req, res) => {
     const feed = addRssFeed(req.params.id, url, name, articles_count || 3);
     res.json(feed);
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Error';
+    const msg = errMsg(e);
     res.status(400).json({ error: msg });
   }
 });
@@ -469,16 +496,16 @@ app.get('/api/rss', async (req, res) => {
     const feed = await rssParser.parseURL(url as string);
     res.json(feed);
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Unknown error';
+    const msg = errMsg(e);
     res.status(500).json({ error: msg });
   }
 });
 
 // --- API: List user's Google Calendars ---
 app.get('/api/calendars', async (req, res) => {
-  const userId = req.user!.user_id;
+  const uid = userId(req);
 
-  const oauth2Client = getOAuth2ClientForUser(userId);
+  const oauth2Client = getOAuth2ClientForUser(uid);
   if (!oauth2Client) {
     return res.json({ calendars: [], prefs: [] });
   }
@@ -493,43 +520,43 @@ app.get('/api/calendars', async (req, res) => {
       backgroundColor: c.backgroundColor || '#4285f4',
     }));
 
-    const prefs = getCalendarPrefs(userId);
+    const prefs = getCalendarPrefs(uid);
     res.json({ calendars, prefs });
   } catch (e: unknown) {
     console.error('Calendar list error:', e);
-    const msg = e instanceof Error ? e.message : 'Unknown error';
+    const msg = errMsg(e);
     res.status(500).json({ error: msg });
   }
 });
 
 // --- API: Save calendar preferences ---
 app.post('/api/calendars/prefs', async (req, res) => {
-  const userId = req.user!.user_id;
+  const uid = userId(req);
   const { prefs } = req.body as { prefs: { calendar_id: string; calendar_name: string; enabled: boolean }[] };
 
   if (!Array.isArray(prefs)) {
     return res.status(400).json({ error: 'Nieprawidlowe dane' });
   }
 
-  saveCalendarPrefs(userId, prefs);
+  saveCalendarPrefs(uid, prefs);
   res.json({ ok: true });
 });
 
 // --- API: Google Calendar events (per-user, multi-calendar) ---
 app.get('/api/calendar', async (req, res) => {
-  const userId = req.user!.user_id;
+  const uid = userId(req);
   const { timeMin, timeMax } = req.query;
 
-  const oauth2Client = getOAuth2ClientForUser(userId);
+  const oauth2Client = getOAuth2ClientForUser(uid);
   if (!oauth2Client) {
-    return res.json({ error: { message: 'Kalendarz nie polaczony. Przejdz do ustawien konta.' } });
+    return res.json({ error: 'Kalendarz nie polaczony. Przejdz do ustawien konta.' });
   }
 
   try {
     const cal = google.calendar({ version: 'v3', auth: oauth2Client });
 
     // Get enabled calendars from prefs, default to primary only
-    const prefs = getCalendarPrefs(userId);
+    const prefs = getCalendarPrefs(uid);
     const enabledIds = prefs.length > 0
       ? prefs.filter(p => p.enabled).map(p => p.calendar_id)
       : ['primary'];
@@ -555,7 +582,8 @@ app.get('/api/calendar', async (req, res) => {
           });
           const color = colorMap.get(calendarId) || '#4285f4';
           return (response.data.items || []).map(ev => ({ ...ev, calendarColor: color }));
-        } catch {
+        } catch (e) {
+          console.error(`Calendar ${calendarId} fetch error:`, errMsg(e));
           return [];
         }
       })
@@ -571,25 +599,25 @@ app.get('/api/calendar', async (req, res) => {
     res.json({ items: merged });
   } catch (e: unknown) {
     console.error('Calendar API error:', e);
-    const msg = e instanceof Error ? e.message : 'Unknown error';
-    res.json({ error: { message: `Blad kalendarza: ${msg}` } });
+    const msg = errMsg(e);
+    res.json({ error: `Blad kalendarza: ${msg}` });
   }
 });
 
 // --- API: Dashboard layout ---
 app.get('/api/layout', (req, res) => {
-  const userId = req.user!.user_id;
-  const layout = getLayout(userId);
+  const uid = userId(req);
+  const layout = getLayout(uid);
   res.json({ layout });
 });
 
 app.put('/api/layout', (req, res) => {
-  const userId = req.user!.user_id;
+  const uid = userId(req);
   const { layout } = req.body as { layout: unknown };
   if (!layout) {
     return res.status(400).json({ error: 'Brak danych layoutu' });
   }
-  saveLayout(userId, layout);
+  saveLayout(uid, layout);
   res.json({ ok: true });
 });
 

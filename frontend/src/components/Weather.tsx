@@ -38,7 +38,7 @@ export default function Weather({ tick }: { tick: number }) {
     fetch('/api/user-cities')
       .then(r => r.json())
       .then((data: CityConfig[]) => setCities(data))
-      .catch(() => {});
+      .catch(err => console.error('Failed to load cities:', err));
   }, []);
 
   useEffect(() => { loadCities(); }, [loadCities]);
@@ -288,7 +288,7 @@ export default function Weather({ tick }: { tick: number }) {
                 {cities.map(c => (
                   <div key={`${c.lat}-${c.lon}`} className="flex items-center justify-between rounded-lg border px-3 py-2">
                     <span className="text-sm font-medium">{c.name} <span className="text-muted-foreground">({c.country})</span></span>
-                    <button onClick={() => removeCity(c)} className="ml-2 text-red-500 hover:text-red-700 text-lg leading-none">&times;</button>
+                    <button onClick={() => removeCity(c)} className="ml-2 text-destructive hover:text-destructive/80 text-lg leading-none">&times;</button>
                   </div>
                 ))}
               </div>

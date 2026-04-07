@@ -24,10 +24,11 @@ export default function Calendar({ tick }: { tick: number }) {
       .then(r => r.json())
       .then(data => {
         if (data.error) {
-          if (data.error.message?.includes('.env')) {
+          const msg = typeof data.error === 'string' ? data.error : data.error.message;
+          if (msg?.includes('ustawien')) {
             setNoKey(true);
           } else {
-            throw new Error(data.error.message);
+            throw new Error(msg);
           }
           setLoading(false);
           return;

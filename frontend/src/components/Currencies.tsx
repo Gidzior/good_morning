@@ -6,6 +6,7 @@ import type { ChartPoint } from '../types';
 import { PERIODS, CHART_CACHE_TTL } from '../config';
 import { fmtPLN, fmtChartDate } from '../utils';
 import Loading from './Loading';
+import { Button } from '@/components/ui/button';
 import Card from './DashboardCard';
 import SettingsModal from './SettingsModal';
 import { TickerGrid } from './TickerCards';
@@ -117,7 +118,7 @@ export default function Currencies({ tick }: { tick: number }) {
        results.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground">
           <p className="text-sm">Brak walut</p>
-          <button onClick={openSettings} className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90">+ Dodaj waluty</button>
+          <Button onClick={openSettings}>+ Dodaj waluty</Button>
         </div>
       ) : (
         <>
@@ -188,7 +189,7 @@ export default function Currencies({ tick }: { tick: number }) {
             {currencies.map(c => (
               <div key={c.code} className="flex items-center justify-between rounded-lg border px-3 py-2">
                 <span className="text-sm"><span className="font-medium">{c.code}</span> — {c.name}</span>
-                <button onClick={() => removeCurrency(c.code)} className="text-red hover:text-red/80 text-lg leading-none">&times;</button>
+                <button onClick={() => removeCurrency(c.code)} className="text-destructive hover:text-destructive/80 text-lg leading-none">&times;</button>
               </div>
             ))}
           </div>

@@ -75,7 +75,7 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
       });
       setNewUrl(''); setNewName(''); setNewCount(3);
       onFeedsChanged();
-    } catch { /* */ }
+    } catch (err) { console.error('Failed to add RSS feed:', err); }
     setAdding(false);
   };
 
@@ -123,7 +123,7 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
                   <div className="text-xs text-muted-foreground truncate max-w-[280px]">{f.url}</div>
                   <div className="text-xs text-muted-foreground">Artykulow: {f.articles_count}</div>
                 </div>
-                <button onClick={() => handleRemoveFeed(f.id)} className="ml-2 text-red-500 hover:text-red-700 text-lg leading-none">&times;</button>
+                <button onClick={() => handleRemoveFeed(f.id)} className="ml-2 text-destructive hover:text-destructive/80 text-lg leading-none">&times;</button>
               </div>
             ))}
           </div>
