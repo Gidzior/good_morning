@@ -1,7 +1,7 @@
-import { useMemo, useRef, type ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { ResponsiveGridLayout, useContainerWidth } from 'react-grid-layout';
 import type { Layout } from 'react-grid-layout';
-import type { LayoutItem, WidgetId } from '../types';
+import type { LayoutItem, WidgetId, Breakpoint, BreakpointLayouts } from '../types';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
@@ -12,20 +12,14 @@ interface WidgetEntry {
 
 interface DashboardGridProps {
   widgets: WidgetEntry[];
-  layout: LayoutItem[];
+  layouts: BreakpointLayouts;
   editMode: boolean;
-  onLayoutChange: (layout: LayoutItem[]) => void;
+  onLayoutChange: (breakpoint: Breakpoint, layout: LayoutItem[]) => void;
 }
 
-export default function DashboardGrid({ widgets, layout, editMode, onLayoutChange }: DashboardGridProps) {
+export default function DashboardGrid({ widgets, layouts, editMode, onLayoutChange }: DashboardGridProps) {
   const { width, containerRef, mounted } = useContainerWidth();
-  const currentBreakpoint = useRef('lg');
-
-  const layouts = useMemo(() => ({
-    lg: layout,
-    md: layout.map(l => ({ ...l, w: Math.min(l.w, 2) })),
-    sm: layout.map(l => ({ ...l, w: 1, x: 0 })),
-  }), [layout]);
+  const currentBreakpoint = useRef<Breakpoint>('lg');
 
   return (
     <div ref={containerRef}>
@@ -46,12 +40,10 @@ export default function DashboardGrid({ widgets, layout, editMode, onLayoutChang
             enabled: editMode,
           }}
           onBreakpointChange={(bp: string) => {
-            currentBreakpoint.current = bp;
+            currentBreakpoint.current = bp as Breakpoint;
           }}
           onLayoutChange={(current: Layout) => {
-            if (currentBreakpoint.current === 'lg') {
-              onLayoutChange(current as LayoutItem[]);
-            }
+            onLayoutChange(currentBreakpoint.current, current as LayoutItem[]);
           }}
         >
           {widgets.map(({ id, node }) => (

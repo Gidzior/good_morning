@@ -79,7 +79,8 @@ Przed commitem: `lint && build` musza przejsc.
 - `dragConfig.enabled` / `resizeConfig.enabled` (v2 renamed from isDraggable/isResizable)
 - `dragConfig.handle` (v2 renamed from draggableHandle)
 - Breakpoints: 900/600/0 — based on CONTAINER width, not viewport (sidebar takes ~300px)
-- Only save layout on `lg` breakpoint to avoid overwriting with collapsed layout
+- Per-breakpoint layout persistence (`{ lg, md, sm }` in `user_layouts.layout_json`)
+- Legacy format (single `LayoutItem[]`) auto-migrated on first save
 - Weather is single widget with internal 2-col grid (not two separate grid items)
 
 ## shadcn/ui base-nova gotchas

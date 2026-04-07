@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { LayoutItem } from '../types';
+import type { LayoutItem, Breakpoint, BreakpointLayouts } from '../types';
 
 const STATIC_LAYOUT: LayoutItem[] = [
   { i: 'weather',  x: 0, y: 0, w: 2, h: 4, minW: 2, maxW: 3, minH: 3 },
@@ -17,56 +17,97 @@ function buildDefaultLayout(rssWidgetIds: string[]): LayoutItem[] {
   return [...STATIC_LAYOUT, ...rssItems];
 }
 
+function deriveBreakpointDefaults(lg: LayoutItem[]): BreakpointLayouts {
+  return {
+    lg,
+    md: lg.map(l => ({ ...l, w: Math.min(l.w, 2) })),
+    sm: lg.map(l => ({ ...l, w: 1, x: 0 })),
+  };
+}
+
+function mergeWithDefaults(defaults: LayoutItem[], saved: LayoutItem[]): LayoutItem[] {
+  const savedMap = new Map(saved.map(item => [item.i, item]));
+  return defaults.map(d => {
+    const s = savedMap.get(d.i);
+    return s ? { ...d, ...s } : d;
+  });
+}
+
+interface SavedLayouts {
+  lg?: LayoutItem[];
+  md?: LayoutItem[];
+  sm?: LayoutItem[];
+}
+
+function isSavedLayouts(data: unknown): data is SavedLayouts {
+  return typeof data === 'object' && data !== null && !Array.isArray(data) && 'lg' in data;
+}
+
 export function useLayout(rssWidgetIds: string[] = []) {
   const defaultLayout = buildDefaultLayout(rssWidgetIds);
-  const [layout, setLayout] = useState<LayoutItem[]>(defaultLayout);
+  const defaultLayouts = deriveBreakpointDefaults(defaultLayout);
+  const [layouts, setLayouts] = useState<BreakpointLayouts>(defaultLayouts);
   const [loaded, setLoaded] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load layout from backend (re-run when rssWidgetIds change)
   useEffect(() => {
     const def = buildDefaultLayout(rssWidgetIds);
+    const defBp = deriveBreakpointDefaults(def);
     fetch('/api/layout')
       .then(r => r.json())
-      .then((data: { layout: LayoutItem[] | null }) => {
-        if (data.layout && Array.isArray(data.layout) && data.layout.length > 0) {
-          const savedMap = new Map(data.layout.map(item => [item.i, item]));
-          const merged = def.map(d => {
-            const saved = savedMap.get(d.i);
-            return saved ? { ...d, ...saved } : d;
-          });
-          setLayout(merged);
+      .then((data: { layout: unknown }) => {
+        if (!data.layout) {
+          setLayouts(defBp);
+          setLoaded(true);
+          return;
+        }
+
+        if (isSavedLayouts(data.layout)) {
+          // New format: per-breakpoint layouts
+          const merged: BreakpointLayouts = {
+            lg: mergeWithDefaults(defBp.lg, data.layout.lg ?? []),
+            md: mergeWithDefaults(defBp.md, data.layout.md ?? []),
+            sm: mergeWithDefaults(defBp.sm, data.layout.sm ?? []),
+          };
+          setLayouts(merged);
+        } else if (Array.isArray(data.layout) && data.layout.length > 0) {
+          // Legacy format: single LayoutItem[] — treat as lg, derive others
+          const lgMerged = mergeWithDefaults(def, data.layout as LayoutItem[]);
+          setLayouts(deriveBreakpointDefaults(lgMerged));
         } else {
-          setLayout(def);
+          setLayouts(defBp);
         }
         setLoaded(true);
       })
-      .catch(() => { setLayout(def); setLoaded(true); });
+      .catch(() => { setLayouts(defBp); setLoaded(true); });
   }, [rssWidgetIds.join(',')]);
 
-  // Debounced save to backend
-  const saveLayout = useCallback((newLayout: LayoutItem[]) => {
+  const saveLayouts = useCallback((newLayouts: BreakpointLayouts) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       fetch('/api/layout', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ layout: newLayout }),
+        body: JSON.stringify({ layout: newLayouts }),
       }).catch(() => { /* silent */ });
     }, 800);
   }, []);
 
-  const onLayoutChange = useCallback((newLayout: LayoutItem[]) => {
-    setLayout(newLayout);
-    saveLayout(newLayout);
-  }, [saveLayout]);
+  const onLayoutChange = useCallback((breakpoint: Breakpoint, newLayout: LayoutItem[]) => {
+    setLayouts(prev => {
+      const updated = { ...prev, [breakpoint]: newLayout };
+      saveLayouts(updated);
+      return updated;
+    });
+  }, [saveLayouts]);
 
   const resetLayout = useCallback(() => {
     const def = buildDefaultLayout(rssWidgetIds);
-    setLayout(def);
-    saveLayout(def);
-  }, [saveLayout, rssWidgetIds]);
+    const defBp = deriveBreakpointDefaults(def);
+    setLayouts(defBp);
+    saveLayouts(defBp);
+  }, [saveLayouts, rssWidgetIds]);
 
-  return { layout, loaded, editMode, setEditMode, onLayoutChange, resetLayout };
+  return { layouts, loaded, editMode, setEditMode, onLayoutChange, resetLayout };
 }

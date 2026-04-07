@@ -1,48 +1,105 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { formatTime } from '../utils';
 import type { WeatherResponse, ForecastItem } from '../types';
 import Loading, { ErrorMsg } from './Loading';
 import Card from './DashboardCard';
-import config from '../config';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+interface CityConfig {
+  lat: number;
+  lon: number;
+  name: string;
+  country: string;
+}
+
+interface SearchResult {
+  name: string;
+  country: string;
+  state: string;
+  lat: number;
+  lon: number;
+}
 
 export default function Weather({ tick }: { tick: number }) {
   const [data, setData] = useState<WeatherResponse | null>(null);
   const [error, setError] = useState('');
+  const [cities, setCities] = useState<CityConfig[]>([]);
   const [cityIdx, setCityIdx] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
+  const [query, setQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const debounce = useRef<ReturnType<typeof setTimeout>>();
 
-  const selected = config.CITIES[cityIdx];
+  const loadCities = useCallback(() => {
+    fetch('/api/user-cities')
+      .then(r => r.json())
+      .then((data: CityConfig[]) => setCities(data))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => { loadCities(); }, [loadCities]);
+
+  const selected = cities[cityIdx] || null;
 
   useEffect(() => {
+    if (!selected) { setData(null); return; }
     setData(null);
     setError('');
-    fetch(`/api/weather?city=${encodeURIComponent(selected.city)}&country=${encodeURIComponent(selected.country)}`)
+    fetch(`/api/weather?lat=${selected.lat}&lon=${selected.lon}`)
       .then(r => r.json())
       .then(d => { setData(d); setError(''); })
       .catch(e => setError(e.message));
-  }, [tick, selected.city, selected.country]);
+  }, [tick, selected?.lat, selected?.lon]);
+
+  const handleSearch = (val: string) => {
+    setQuery(val);
+    if (debounce.current) clearTimeout(debounce.current);
+    if (val.length < 2) { setSearchResults([]); return; }
+    setSearching(true);
+    debounce.current = setTimeout(() => {
+      fetch(`/api/cities/search?q=${encodeURIComponent(val)}`)
+        .then(r => r.json())
+        .then((data: SearchResult[] | unknown) => { setSearchResults(Array.isArray(data) ? data : []); setSearching(false); })
+        .catch(() => setSearching(false));
+    }, 400);
+  };
+
+  const addCity = async (c: SearchResult) => {
+    await fetch('/api/user-cities', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat: c.lat, lon: c.lon, name: c.name, country: c.country }),
+    });
+    loadCities();
+    setQuery('');
+    setSearchResults([]);
+  };
+
+  const removeCity = async (c: CityConfig) => {
+    await fetch('/api/user-cities', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat: c.lat, lon: c.lon }),
+    });
+    if (cityIdx >= cities.length - 1 && cityIdx > 0) setCityIdx(cityIdx - 1);
+    loadCities();
+  };
 
   const noKey = data?.current?.cod === 401;
 
-  // Today's forecast items
   const todayStr = new Date().toDateString();
   const forecasts: ForecastItem[] = data?.forecast?.list
     ?.filter(item => new Date(item.dt * 1000).toDateString() === todayStr)
     .slice(0, 5) ?? [];
 
-  // If no forecasts for today, try tomorrow
   const tomorrowStr = new Date(Date.now() + 86400000).toDateString();
   const displayForecasts = forecasts.length > 0
     ? forecasts
     : (data?.forecast?.list?.filter(item => new Date(item.dt * 1000).toDateString() === tomorrowStr).slice(0, 5) ?? []);
 
-  // 3-day forecast: group by day, get max temp + most common icon (noon preferred)
   interface DaySummary { date: Date; maxTemp: number; icon: string }
   const dailyForecast: DaySummary[] = (() => {
     if (!data?.forecast?.list) return [];
@@ -58,7 +115,6 @@ export default function Weather({ tick }: { tick: number }) {
     for (const [dayStr, items] of byDay) {
       if (days.length >= 3) break;
       const maxTemp = Math.max(...items.map(i => i.main.temp));
-      // prefer noon icon (12:00-15:00), fallback to first
       const noonItem = items.find(i => {
         const h = new Date(i.dt * 1000).getHours();
         return h >= 12 && h <= 15;
@@ -69,37 +125,39 @@ export default function Weather({ tick }: { tick: number }) {
     return days;
   })();
 
-  const citySelect = (
+  const cityTabs = cities.length > 1 ? (
     <Select
-      value={selected.city}
-      onValueChange={(v) => {
-        const idx = config.CITIES.findIndex(c => c.city === v);
+      value={selected?.name ?? ''}
+      onValueChange={(v: string) => {
+        const idx = cities.findIndex(c => c.name === v);
         if (idx >= 0) setCityIdx(idx);
       }}
     >
-      <SelectTrigger className="h-7 w-[130px] border-border bg-secondary text-xs">
-        <SelectValue placeholder={selected.label} />
+      <SelectTrigger size="sm">
+        <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {config.CITIES.map((c) => (
-          <SelectItem key={c.city} value={c.city}>
-            {c.label}
+        {cities.map(c => (
+          <SelectItem key={`${c.lat}-${c.lon}`} value={c.name}>
+            {c.name}
           </SelectItem>
         ))}
       </SelectContent>
     </Select>
-  );
+  ) : null;
 
   return (
     <div className="grid grid-cols-2 gap-5 max-sm:grid-cols-1">
-      <Card icon="🌤" title="Pogoda" action={citySelect}>
-        {noKey ? (
+      <Card icon="🌤" title="Pogoda" action={cityTabs} onSettings={() => setShowSettings(true)}>
+        {cities.length === 0 ? (
+          <div className="text-sm text-muted-foreground py-4 text-center">
+            Brak miast. Kliknij <button onClick={() => setShowSettings(true)} className="text-primary underline">⚙ ustawienia</button> zeby dodac.
+          </div>
+        ) : noKey ? (
           <div className="weather-main">
             <div>
               <div className="weather-temp">--°C</div>
-              <div className="weather-desc">
-                Uzupelnij WEATHER_API_KEY w pliku .env
-              </div>
+              <div className="weather-desc">Uzupelnij WEATHER_API_KEY w pliku .env</div>
             </div>
           </div>
         ) : error ? (
@@ -161,7 +219,9 @@ export default function Weather({ tick }: { tick: number }) {
       </Card>
 
       <Card icon="📅" title="Prognoza na dzis">
-        {noKey ? (
+        {cities.length === 0 ? (
+          <div className="text-sm text-muted-foreground py-4">Dodaj miasto w ustawieniach pogody</div>
+        ) : noKey ? (
           <ErrorMsg message="Brak klucza API pogody" />
         ) : !data ? (
           <Loading text="Ladowanie prognozy..." />
@@ -178,6 +238,70 @@ export default function Weather({ tick }: { tick: number }) {
           ))
         )}
       </Card>
+
+      {showSettings && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowSettings(false)}>
+          <div className="mx-4 w-full max-w-md rounded-xl bg-card p-5 shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Zarzadzaj miastami</h3>
+              <button onClick={() => setShowSettings(false)} className="text-muted-foreground hover:text-foreground text-xl leading-none">&times;</button>
+            </div>
+
+            <input
+              type="text"
+              value={query}
+              onChange={e => handleSearch(e.target.value)}
+              placeholder="Szukaj miasta (np. Warszawa, Paris)..."
+              className="mb-3 w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+              autoFocus
+            />
+            {searching && <p className="mb-2 text-xs text-muted-foreground">Szukam...</p>}
+            {searchResults.length > 0 && (
+              <div className="mb-4 max-h-40 overflow-y-auto rounded-lg border">
+                {searchResults.map((c, i) => {
+                  const exists = cities.some(x => x.lat === c.lat && x.lon === c.lon);
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => !exists && addCity(c)}
+                      disabled={exists}
+                      className={cn(
+                        'flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-secondary',
+                        exists && 'opacity-40',
+                      )}
+                    >
+                      <span>
+                        <span className="font-medium">{c.name}</span>
+                        {c.state && <span className="text-muted-foreground">, {c.state}</span>}
+                        <span className="text-muted-foreground"> ({c.country})</span>
+                      </span>
+                      {exists ? (
+                        <span className="text-xs text-muted-foreground">dodane</span>
+                      ) : (
+                        <span className="text-primary">+</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="text-xs font-medium text-muted-foreground mb-2">Twoje miasta ({cities.length})</div>
+            {cities.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Brak — wyszukaj i dodaj miasta powyzej</p>
+            ) : (
+              <div className="space-y-1">
+                {cities.map(c => (
+                  <div key={`${c.lat}-${c.lon}`} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                    <span className="text-sm font-medium">{c.name} <span className="text-muted-foreground">({c.country})</span></span>
+                    <button onClick={() => removeCity(c)} className="ml-2 text-red-500 hover:text-red-700 text-lg leading-none">&times;</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>,
+      document.body)}
     </div>
   );
 }

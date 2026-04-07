@@ -6,7 +6,7 @@ import fetch, { Response } from 'node-fetch';
 import RSSParser from 'rss-parser';
 import { google } from 'googleapis';
 import authRouter, { requireAuth, getOAuth2ClientForUser } from './auth';
-import { getCalendarPrefs, saveCalendarPrefs, getLayout, saveLayout, getUserStocks, addUserStock, deleteUserStock, getUserCryptos, addUserCrypto, deleteUserCrypto, getUserCurrencies, addUserCurrency, deleteUserCurrency, getRssWidgets, createRssWidget, updateRssWidget, deleteRssWidget, addRssFeed, deleteRssFeed } from './db';
+import { getCalendarPrefs, saveCalendarPrefs, getLayout, saveLayout, getUserStocks, addUserStock, deleteUserStock, getUserCryptos, addUserCrypto, deleteUserCrypto, getUserCurrencies, addUserCurrency, deleteUserCurrency, getRssWidgets, createRssWidget, updateRssWidget, deleteRssWidget, addRssFeed, deleteRssFeed, getUserCities, addUserCity, deleteUserCity } from './db';
 
 const app = express();
 const PORT = 3001;
@@ -55,9 +55,51 @@ app.use('/auth', authRouter);
 // --- Protected API routes ---
 app.use('/api', requireAuth);
 
-// --- API: Weather (keys from .env) ---
+// --- API: User cities CRUD ---
+app.get('/api/user-cities', (req, res) => {
+  res.json(getUserCities(req.user!.user_id));
+});
+
+app.post('/api/user-cities', (req, res) => {
+  const { lat, lon, name, country } = req.body as { lat: number; lon: number; name: string; country: string };
+  if (!name || lat == null || lon == null) return res.status(400).json({ error: 'lat, lon, name required' });
+  addUserCity(req.user!.user_id, lat, lon, name, country || '');
+  res.json({ ok: true });
+});
+
+app.delete('/api/user-cities', (req, res) => {
+  const { lat, lon } = req.body as { lat: number; lon: number };
+  if (lat == null || lon == null) return res.status(400).json({ error: 'lat and lon required' });
+  deleteUserCity(req.user!.user_id, lat, lon);
+  res.json({ ok: true });
+});
+
+// --- API: City search (OpenWeatherMap geocoding) ---
+app.get('/api/cities/search', async (req, res) => {
+  const q = req.query.q as string;
+  const apiKey = process.env.WEATHER_API_KEY;
+  if (!q || q.length < 2 || !apiKey) return res.json([]);
+  try {
+    const url = `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(q)}&limit=5&appid=${apiKey}`;
+    const r = await fetch(url);
+    const data = await r.json() as { name: string; lat: number; lon: number; country: string; state?: string }[];
+    res.json((data || []).map(c => ({
+      name: c.name,
+      country: c.country,
+      state: c.state || '',
+      lat: Math.round(c.lat * 10000) / 10000,
+      lon: Math.round(c.lon * 10000) / 10000,
+    })));
+  } catch {
+    res.json([]);
+  }
+});
+
+// --- API: Weather (supports lat/lon or city name) ---
 app.get('/api/weather', async (req, res) => {
   const apiKey = process.env.WEATHER_API_KEY;
+  const lat = req.query.lat as string | undefined;
+  const lon = req.query.lon as string | undefined;
   const city = (req.query.city as string) || process.env.WEATHER_CITY || 'Warszawa';
   const country = (req.query.country as string) || process.env.WEATHER_COUNTRY || 'PL';
 
@@ -65,12 +107,16 @@ app.get('/api/weather', async (req, res) => {
     return res.json({ current: { cod: 401, message: 'Brak klucza API pogody w .env' }, forecast: { list: [] } });
   }
 
+  const locQuery = lat && lon
+    ? `lat=${lat}&lon=${lon}`
+    : `q=${encodeURIComponent(city)},${encodeURIComponent(country)}`;
+
   try {
     const [current, forecast] = await Promise.all([
-      fetch(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)},${encodeURIComponent(country)}&appid=${apiKey}&units=metric&lang=pl`).then(json),
-      fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(city)},${encodeURIComponent(country)}&appid=${apiKey}&units=metric&lang=pl`).then(json),
+      fetch(`https://api.openweathermap.org/data/2.5/weather?${locQuery}&appid=${apiKey}&units=metric&lang=pl`).then(json),
+      fetch(`https://api.openweathermap.org/data/2.5/forecast?${locQuery}&appid=${apiKey}&units=metric&lang=pl`).then(json),
     ]);
-    res.json({ current, forecast, city, country });
+    res.json({ current, forecast, city: lat ? '' : city, country: lat ? '' : country });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
     res.status(500).json({ error: msg });

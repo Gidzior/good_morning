@@ -46,7 +46,7 @@ function Dashboard() {
   useEffect(() => { loadRssWidgets(); }, [loadRssWidgets]);
 
   const rssWidgetIds = useMemo(() => rssWidgets.map(w => `rss-${w.id}` as const), [rssWidgets]);
-  const { layout, loaded, editMode, setEditMode, onLayoutChange, resetLayout } = useLayout(rssWidgetIds);
+  const { layouts, loaded, editMode, setEditMode, onLayoutChange, resetLayout } = useLayout(rssWidgetIds);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -116,7 +116,7 @@ function Dashboard() {
             {loaded && rssLoaded ? (
               <DashboardGrid
                 widgets={widgets}
-                layout={layout}
+                layouts={layouts}
                 editMode={editMode}
                 onLayoutChange={onLayoutChange}
               />

@@ -79,6 +79,16 @@ db.exec(`
     PRIMARY KEY (user_id, symbol)
   );
 
+  CREATE TABLE IF NOT EXISTS user_cities (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    lat REAL NOT NULL,
+    lon REAL NOT NULL,
+    name TEXT NOT NULL,
+    country TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, lat, lon)
+  );
+
   CREATE TABLE IF NOT EXISTS user_rss_widgets (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -183,6 +193,13 @@ const stmts = {
     VALUES (@user_id, @symbol, @name, (SELECT COALESCE(MAX(sort_order),0)+1 FROM user_stocks WHERE user_id = @user_id))
   `),
   deleteUserStock: db.prepare(`DELETE FROM user_stocks WHERE user_id = ? AND symbol = ?`),
+
+  getUserCities: db.prepare(`SELECT lat, lon, name, country FROM user_cities WHERE user_id = ? ORDER BY sort_order`),
+  addUserCity: db.prepare(`
+    INSERT OR IGNORE INTO user_cities (user_id, lat, lon, name, country, sort_order)
+    VALUES (@user_id, @lat, @lon, @name, @country, (SELECT COALESCE(MAX(sort_order),0)+1 FROM user_cities WHERE user_id = @user_id))
+  `),
+  deleteUserCity: db.prepare(`DELETE FROM user_cities WHERE user_id = ? AND lat = ? AND lon = ?`),
 
   getRssWidgets: db.prepare(`SELECT id, name, sort_order FROM user_rss_widgets WHERE user_id = ? ORDER BY sort_order`),
   createRssWidget: db.prepare(`
@@ -345,6 +362,21 @@ export function addUserStock(userId: string, symbol: string, name: string): void
 
 export function deleteUserStock(userId: string, symbol: string): void {
   stmts.deleteUserStock.run(userId, symbol);
+}
+
+// --- User Cities ---
+export interface UserCity { lat: number; lon: number; name: string; country: string; }
+
+export function getUserCities(userId: string): UserCity[] {
+  return stmts.getUserCities.all(userId) as UserCity[];
+}
+
+export function addUserCity(userId: string, lat: number, lon: number, name: string, country: string): void {
+  stmts.addUserCity.run({ user_id: userId, lat, lon, name, country });
+}
+
+export function deleteUserCity(userId: string, lat: number, lon: number): void {
+  stmts.deleteUserCity.run(userId, lat, lon);
 }
 
 // --- RSS Widgets ---

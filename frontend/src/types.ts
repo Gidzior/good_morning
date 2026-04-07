@@ -104,4 +104,8 @@ export interface LayoutItem {
   minH?: number;
 }
 
+export type Breakpoint = 'lg' | 'md' | 'sm';
+
+export type BreakpointLayouts = Record<Breakpoint, LayoutItem[]>;
+
 export type WidgetId = 'weather' | 'quote' | 'calendar' | 'crypto' | 'currencies' | 'stocks' | `rss-${string}`;
