@@ -3,6 +3,9 @@
 Poranny dashboard briefingowy. TypeScript + Vite + React (frontend), Express + TypeScript (backend).
 Kod musi byc: strict-typed (zero `any`), bezpieczny (secrets w .env, walidacja danych), wydajny (lazy loading, code splitting).
 Zasada KISS — zawsze wybieraj najprostsze rozwiazanie. Unikaj over-engineeringu, abstrakcji na zapas i zlozonosci bez uzasadnienia.
+Zasada DRY (z umiarem) — nie duplikuj logiki, ale abstrakcja dopiero przy 3+ powtorzeniach. Przedwczesna abstrakcja jest gorsza niz duplikacja.
+Fail Fast — waliduj dane na wejsciu (granice systemu, API, user input). Nie przepuszczaj blednych danych dalej — rzucaj blad jak najwczesniej.
+Error Handling — nigdy nie polykaj bledow cichym catch. Zawsze loguj lub propaguj. Uzytkownik i developer musza wiedziec co poszlo nie tak.
 
 ## Stack
 - Frontend: React 19 + TypeScript strict + Vite 8 (port 5173)
