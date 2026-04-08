@@ -43,7 +43,7 @@ function Dashboard() {
 
   const loadRssWidgets = useCallback(() => {
     fetch('/api/rss-widgets')
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((data: RssWidgetData[]) => { setRssWidgets(data); setRssLoaded(true); })
       .catch((err) => { console.error('Failed to load RSS widgets:', err); setRssLoaded(true); });
   }, []);
@@ -63,11 +63,12 @@ function Dashboard() {
 
   const addRssWidget = useCallback(async (name: string) => {
     if (!name.trim()) return;
-    await fetch('/api/rss-widgets', {
+    const r = await fetch('/api/rss-widgets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: name.trim() }),
     });
+    if (!r.ok) { console.error('Failed to add RSS widget:', r.status); return; }
     loadRssWidgets();
   }, [loadRssWidgets]);
 

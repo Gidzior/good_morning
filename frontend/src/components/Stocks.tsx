@@ -35,7 +35,7 @@ export default function Stocks({ tick }: { tick: number }) {
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
-    fetch('/api/user-stocks').then(r => r.json()).then((data: StockDef[]) => {
+    fetch('/api/user-stocks').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then((data: StockDef[]) => {
       setStocks(data);
       if (data.length && !active) setActive(data[0].symbol);
     });
@@ -48,6 +48,7 @@ export default function Stocks({ tick }: { tick: number }) {
       stocks.map(async (stock) => {
         try {
           const res = await fetch(`/api/stock/${encodeURIComponent(stock.symbol)}`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
           const meta = data.chart.result[0].meta;
           const price = meta.regularMarketPrice;
@@ -70,7 +71,7 @@ export default function Stocks({ tick }: { tick: number }) {
     }
     setChartLoading(true);
     fetch(`/api/stock/${encodeURIComponent(active)}/history?days=${period}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((pts: ChartPoint[]) => {
         const data = Array.isArray(pts) ? pts : [];
         chartCache.current.set(key, { data, ts: Date.now() });
@@ -88,7 +89,7 @@ export default function Stocks({ tick }: { tick: number }) {
     setSearching(true);
     searchTimeout.current = setTimeout(() => {
       fetch(`/api/stocks/search?q=${encodeURIComponent(val)}`)
-        .then(r => r.json())
+        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
         .then((data: SearchResult[]) => { setSearchResults(data); setSearching(false); })
         .catch((err) => { console.error('Stock search failed:', err); setSearching(false); });
     }, 300);
@@ -96,14 +97,16 @@ export default function Stocks({ tick }: { tick: number }) {
 
   const addStock = async (s: SearchResult) => {
     if (stocks.find(x => x.symbol === s.symbol)) return;
-    await fetch('/api/user-stocks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(s) });
+    const r = await fetch('/api/user-stocks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(s) });
+    if (!r.ok) { console.error('Failed to add stock:', r.status); return; }
     setStocks(prev => [...prev, s]);
     if (!active) setActive(s.symbol);
     setQuery(''); setSearchResults([]);
   };
 
   const removeStock = async (symbol: string) => {
-    await fetch(`/api/user-stocks/${encodeURIComponent(symbol)}`, { method: 'DELETE' });
+    const r = await fetch(`/api/user-stocks/${encodeURIComponent(symbol)}`, { method: 'DELETE' });
+    if (!r.ok) { console.error('Failed to remove stock:', r.status); return; }
     setStocks(prev => prev.filter(s => s.symbol !== symbol));
     if (active === symbol) {
       const remaining = stocks.filter(s => s.symbol !== symbol);

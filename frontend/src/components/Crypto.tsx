@@ -32,7 +32,7 @@ export default function Crypto({ tick }: { tick: number }) {
   const [query, setQuery] = useState('');
 
   useEffect(() => {
-    fetch('/api/user-cryptos').then(r => r.json()).then((data: CryptoDef[]) => {
+    fetch('/api/user-cryptos').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then((data: CryptoDef[]) => {
       setCryptos(data);
       if (data.length && !active) setActive(data[0].symbol);
     });
@@ -45,6 +45,7 @@ export default function Crypto({ tick }: { tick: number }) {
       cryptos.map(async (c) => {
         try {
           const res = await fetch(`/api/crypto/${encodeURIComponent(c.symbol)}`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
           const price = parseFloat(data.ticker.rate);
           const prev = parseFloat(data.ticker.previousRate);
@@ -66,7 +67,7 @@ export default function Crypto({ tick }: { tick: number }) {
     }
     setChartLoading(true);
     fetch(`/api/crypto/${encodeURIComponent(active)}/history?days=${period}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((pts: ChartPoint[]) => {
         const data = Array.isArray(pts) ? pts : [];
         chartCache.current.set(key, { data, ts: Date.now() });
@@ -80,19 +81,21 @@ export default function Crypto({ tick }: { tick: number }) {
   const openSettings = () => {
     setShowSettings(true);
     if (!available.length) {
-      fetch('/api/cryptos/available').then(r => r.json()).then(setAvailable);
+      fetch('/api/cryptos/available').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(setAvailable).catch(err => console.error('Failed to load available cryptos:', err));
     }
   };
 
   const addCrypto = async (c: CryptoDef) => {
     if (cryptos.find(x => x.symbol === c.symbol)) return;
-    await fetch('/api/user-cryptos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c) });
+    const r = await fetch('/api/user-cryptos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c) });
+    if (!r.ok) { console.error('Failed to add crypto:', r.status); return; }
     setCryptos(prev => [...prev, c]);
     if (!active) setActive(c.symbol);
   };
 
   const removeCrypto = async (symbol: string) => {
-    await fetch(`/api/user-cryptos/${encodeURIComponent(symbol)}`, { method: 'DELETE' });
+    const r = await fetch(`/api/user-cryptos/${encodeURIComponent(symbol)}`, { method: 'DELETE' });
+    if (!r.ok) { console.error('Failed to remove crypto:', r.status); return; }
     setCryptos(prev => prev.filter(c => c.symbol !== symbol));
     if (active === symbol) {
       const remaining = cryptos.filter(c => c.symbol !== symbol);

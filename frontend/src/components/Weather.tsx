@@ -36,7 +36,7 @@ export default function Weather({ tick }: { tick: number }) {
 
   const loadCities = useCallback(() => {
     fetch('/api/user-cities')
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((data: CityConfig[]) => setCities(data))
       .catch(err => console.error('Failed to load cities:', err));
   }, []);
@@ -50,7 +50,7 @@ export default function Weather({ tick }: { tick: number }) {
     setData(null);
     setError('');
     fetch(`/api/weather?lat=${selected.lat}&lon=${selected.lon}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => { setData(d); setError(''); })
       .catch(e => { console.error('Weather fetch error:', e); setError(e instanceof Error ? e.message : 'Unknown error'); });
   }, [tick, selected?.lat, selected?.lon]);
@@ -62,29 +62,31 @@ export default function Weather({ tick }: { tick: number }) {
     setSearching(true);
     debounce.current = setTimeout(() => {
       fetch(`/api/cities/search?q=${encodeURIComponent(val)}`)
-        .then(r => r.json())
+        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
         .then((data: SearchResult[] | unknown) => { setSearchResults(Array.isArray(data) ? data : []); setSearching(false); })
         .catch((err) => { console.error('City search failed:', err); setSearching(false); });
     }, 400);
   };
 
   const addCity = async (c: SearchResult) => {
-    await fetch('/api/user-cities', {
+    const r = await fetch('/api/user-cities', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lat: c.lat, lon: c.lon, name: c.name, country: c.country }),
     });
+    if (!r.ok) { console.error('Failed to add city:', r.status); return; }
     loadCities();
     setQuery('');
     setSearchResults([]);
   };
 
   const removeCity = async (c: CityConfig) => {
-    await fetch('/api/user-cities', {
+    const r = await fetch('/api/user-cities', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lat: c.lat, lon: c.lon }),
     });
+    if (!r.ok) { console.error('Failed to remove city:', r.status); return; }
     if (cityIdx >= cities.length - 1 && cityIdx > 0) setCityIdx(cityIdx - 1);
     loadCities();
   };

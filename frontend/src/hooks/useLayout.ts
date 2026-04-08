@@ -55,7 +55,7 @@ export function useLayout(rssWidgetIds: string[] = []) {
     const def = buildDefaultLayout(rssWidgetIds);
     const defBp = deriveBreakpointDefaults(def);
     fetch('/api/layout')
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((data: { layout: unknown }) => {
         if (!data.layout) {
           setLayouts(defBp);

@@ -21,7 +21,7 @@ export default function Calendar({ tick }: { tick: number }) {
     end.setDate(end.getDate() + 3);
 
     fetch(`/api/calendar?timeMin=${now.toISOString()}&timeMax=${end.toISOString()}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(data => {
         if (data.error) {
           const msg = data.error as string;

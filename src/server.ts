@@ -535,8 +535,9 @@ app.post('/api/rss-widgets/:id/feeds', (req, res) => {
   const { url: rawUrl, name, articles_count } = req.body as { url: string; name: string; articles_count?: number };
   const url = rawUrl?.trim();
   if (!url || !name) return res.status(400).json({ error: 'url and name required' });
+  const count = Math.max(1, Math.min(10, Number(articles_count) || 3));
   try {
-    const feed = addRssFeed(userId(req), req.params.id, url, name, articles_count || 3);
+    const feed = addRssFeed(userId(req), req.params.id, url, name, count);
     res.json(feed);
   } catch (e: unknown) {
     const msg = errMsg(e);

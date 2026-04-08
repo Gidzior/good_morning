@@ -44,6 +44,7 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
       feeds.map(async (feed) => {
         try {
           const res = await fetch(`/api/rss?url=${encodeURIComponent(feed.url)}`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
           return (data.items || [])
             .slice(0, feed.articles_count)
@@ -69,11 +70,12 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
     if (!newUrl || !newName) return;
     setAdding(true);
     try {
-      await fetch(`/api/rss-widgets/${widgetId}/feeds`, {
+      const r = await fetch(`/api/rss-widgets/${widgetId}/feeds`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: newUrl, name: newName, articles_count: newCount }),
       });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setNewUrl(''); setNewName(''); setNewCount(3);
       onFeedsChanged();
     } catch (err) { console.error('Failed to add RSS feed:', err); }
@@ -81,7 +83,8 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
   };
 
   const handleRemoveFeed = async (feedId: string) => {
-    await fetch(`/api/rss-widgets/${widgetId}/feeds/${feedId}`, { method: 'DELETE' });
+    const r = await fetch(`/api/rss-widgets/${widgetId}/feeds/${feedId}`, { method: 'DELETE' });
+    if (!r.ok) { console.error('Failed to remove RSS feed:', r.status); return; }
     onFeedsChanged();
   };
 

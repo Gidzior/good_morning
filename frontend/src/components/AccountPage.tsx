@@ -43,6 +43,7 @@ export default function AccountPage({ onBack, lastUpdate, countdown, onRefresh }
     setLoadingCals(true);
     try {
       const res = await fetch('/api/calendars');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json() as { calendars: GoogleCalendar[]; prefs: CalendarPref[] };
       setCalendars(data.calendars);
 
@@ -69,7 +70,8 @@ export default function AccountPage({ onBack, lastUpdate, countdown, onRefresh }
   if (!user) return null;
 
   const handleDisconnectCalendar = async () => {
-    await fetch('/auth/disconnect-calendar', { method: 'POST' });
+    const r = await fetch('/auth/disconnect-calendar', { method: 'POST' });
+    if (!r.ok) { console.error('Failed to disconnect calendar:', r.status); return; }
     await refresh();
     setCalendars([]);
     setEnabledIds(new Set());
@@ -95,12 +97,13 @@ export default function AccountPage({ onBack, lastUpdate, countdown, onRefresh }
       calendar_name: c.summary,
       enabled: enabledIds.has(c.id),
     }));
-    await fetch('/api/calendars/prefs', {
+    const r = await fetch('/api/calendars/prefs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prefs }),
     });
     setSaving(false);
+    if (!r.ok) { console.error('Failed to save calendar prefs:', r.status); return; }
     setSaved(true);
   };
 

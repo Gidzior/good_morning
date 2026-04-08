@@ -30,6 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchUser = useCallback(async () => {
     try {
       const res = await fetch('/auth/me');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json() as { user: AuthUser | null };
       setUser(data.user);
     } catch (err) {

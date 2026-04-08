@@ -32,7 +32,7 @@ export default function Currencies({ tick }: { tick: number }) {
   const [query, setQuery] = useState('');
 
   useEffect(() => {
-    fetch('/api/user-currencies').then(r => r.json()).then((data: CurrencyDef[]) => {
+    fetch('/api/user-currencies').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then((data: CurrencyDef[]) => {
       setCurrencies(data);
       if (data.length && !active) setActive(data[0].code);
     });
@@ -45,6 +45,7 @@ export default function Currencies({ tick }: { tick: number }) {
       currencies.map(async (c) => {
         try {
           const res = await fetch(`/api/currency/${encodeURIComponent(c.code)}`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
           const change = data.prev ? ((data.mid - data.prev) / data.prev) * 100 : 0;
           return { code: c.code, name: c.name, mid: data.mid, change };
@@ -65,7 +66,7 @@ export default function Currencies({ tick }: { tick: number }) {
     }
     setChartLoading(true);
     fetch(`/api/currencies/history/${encodeURIComponent(active)}?days=${period}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((pts: ChartPoint[]) => {
         const data = Array.isArray(pts) ? pts : [];
         chartCache.current.set(key, { data, ts: Date.now() });
@@ -79,19 +80,21 @@ export default function Currencies({ tick }: { tick: number }) {
   const openSettings = () => {
     setShowSettings(true);
     if (!available.length) {
-      fetch('/api/currencies/available').then(r => r.json()).then(setAvailable);
+      fetch('/api/currencies/available').then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).then(setAvailable).catch(err => console.error('Failed to load available currencies:', err));
     }
   };
 
   const addCurrency = async (c: CurrencyDef) => {
     if (currencies.find(x => x.code === c.code)) return;
-    await fetch('/api/user-currencies', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c) });
+    const r = await fetch('/api/user-currencies', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(c) });
+    if (!r.ok) { console.error('Failed to add currency:', r.status); return; }
     setCurrencies(prev => [...prev, c]);
     if (!active) setActive(c.code);
   };
 
   const removeCurrency = async (code: string) => {
-    await fetch(`/api/user-currencies/${encodeURIComponent(code)}`, { method: 'DELETE' });
+    const r = await fetch(`/api/user-currencies/${encodeURIComponent(code)}`, { method: 'DELETE' });
+    if (!r.ok) { console.error('Failed to remove currency:', r.status); return; }
     setCurrencies(prev => prev.filter(c => c.code !== code));
     if (active === code) {
       const remaining = currencies.filter(c => c.code !== code);

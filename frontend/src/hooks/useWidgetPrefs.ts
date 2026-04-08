@@ -37,6 +37,7 @@ export function useWidgetPrefs() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: true }),
     });
+    if (!r.ok) { console.error('Failed to enable widget:', r.status); return undefined; }
     const data = await r.json() as { savedLayout?: BreakpointLayouts };
     return data.savedLayout;
   }, []);
@@ -44,7 +45,7 @@ export function useWidgetPrefs() {
   /** Disable widget, optionally saving its current layout per breakpoint. */
   const disableWidget = useCallback(async (widgetId: string, opts?: DisableOptions) => {
     setPrefs(prev => ({ ...prev, [widgetId]: { enabled: false } }));
-    await fetch(`/api/widget-prefs/${encodeURIComponent(widgetId)}`, {
+    const r = await fetch(`/api/widget-prefs/${encodeURIComponent(widgetId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -53,6 +54,7 @@ export function useWidgetPrefs() {
         savedLayout: opts?.savedLayout,
       }),
     });
+    if (!r.ok) console.error('Failed to disable widget:', r.status);
   }, []);
 
   return { prefs, loaded, isEnabled, enableWidget, disableWidget };
