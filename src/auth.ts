@@ -1,7 +1,20 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import type { CookieOptions } from 'express';
 import { google } from 'googleapis';
 import { upsertUser, createSession, getSession, deleteSession, upsertToken, getToken, deleteToken } from './db';
 import type { SessionWithUser, UserToken } from './db';
+
+const IS_PROD = process.env.NODE_ENV === 'production';
+
+/** Shared cookie options — secure + strict in production */
+function sessionCookie(sessionId: string): [string, string, CookieOptions] {
+  return ['session_id', sessionId, {
+    httpOnly: true,
+    sameSite: IS_PROD ? 'strict' : 'lax',
+    secure: IS_PROD,
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+  }];
+}
 
 // --- Google OAuth2 client ---
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
@@ -111,12 +124,7 @@ router.get('/google/callback', async (req: Request, res: Response) => {
     // Create session
     const sessionId = createSession(user.id);
 
-    res.cookie('session_id', sessionId, {
-      httpOnly: true,
-      sameSite: 'lax',
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      secure: process.env.NODE_ENV === 'production',
-    });
+    res.cookie(...sessionCookie(sessionId));
 
     // Redirect to dashboard
     res.redirect(FRONTEND_URL);
@@ -184,8 +192,8 @@ router.get('/calendar-connect', requireAuth, (_req: Request, res: Response) => {
   res.redirect(url);
 });
 
-// Dev-only auto-login (creates session for first user in DB, localhost only)
-if (BASE_URL.includes('localhost')) {
+// Dev-only auto-login (creates session for first user in DB)
+if (process.env.NODE_ENV !== 'production') {
   router.get('/dev-login', (_req: Request, res: Response) => {
     // Find first user in DB via a direct query
     const db = require('./db').default;
@@ -196,11 +204,7 @@ if (BASE_URL.includes('localhost')) {
     }
 
     const sessionId = createSession(firstUser.id);
-    res.cookie('session_id', sessionId, {
-      httpOnly: true,
-      sameSite: 'lax',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie(...sessionCookie(sessionId));
     res.redirect(FRONTEND_URL);
   });
 }

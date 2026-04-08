@@ -2,6 +2,7 @@
 
 Poranny dashboard briefingowy. TypeScript + Vite + React (frontend), Express + TypeScript (backend).
 Kod musi byc: strict-typed (zero `any`), bezpieczny (secrets w .env, walidacja danych), wydajny (lazy loading, code splitting).
+Zasada KISS — zawsze wybieraj najprostsze rozwiazanie. Unikaj over-engineeringu, abstrakcji na zapas i zlozonosci bez uzasadnienia.
 
 ## Stack
 - Frontend: React 19 + TypeScript strict + Vite 8 (port 5173)
@@ -105,23 +106,39 @@ Przed commitem: `lint && build` musza przejsc.
 
 ## Production Deployment Plan (TODO)
 
-> Hosting: **publiczny VPS** (nie Synology NAS) — Google OAuth wymaga publicznego redirect_uri.
+> Hosting: **publiczny VPS** (Hetzner CPX11 lub podobny) — Google OAuth wymaga publicznego redirect_uri.
+> Stack produkcyjny: Node.js + pm2 + Caddy (bez Dockera — KISS, jeden proces, zero orkiestracji).
 
-### Faza 1: Security hardening (BLOCKER przed deploy)
-1. `/auth/dev-login` — usunac lub zamienic na `NODE_ENV !== 'production'` (src/auth.ts)
-2. Cookie `secure: true` w produkcji — wzorzec: `secure: process.env.NODE_ENV === 'production'`
-3. HTTPS — reverse proxy (Caddy/nginx) z auto-SSL
-4. Rate limiting — `express-rate-limit` (/auth: 10 req/min, /api: 60 req/min)
-5. CSRF — sprawdzac Origin header lub SameSite=Strict na cookie
-6. SESSION_SECRET — silny (32+ znaków) w .env produkcyjnym
+### Faza 1: Security hardening ✅ DONE
+1. ✅ `/auth/dev-login` — guard `NODE_ENV !== 'production'` (src/auth.ts)
+2. ✅ Cookie `secure: true` w produkcji + `SameSite=Strict` — via `sessionCookie()` helper
+3. ⚠️ SESSION_SECRET — silny (32+ znakow) w .env produkcyjnym (do ustawienia na VPS)
+4. ✅ Rate limiting — `express-rate-limit` (/auth: 10 req/min, /api: 300 req/min)
 
-### Faza 2: Docker (VPS)
-7. Dockerfile multi-stage: build frontend → production backend + static serve
-8. docker-compose.yml: volume data/ (SQLite) + .env, restart: unless-stopped
-9. Google OAuth redirect URI — ustawic na produkcyjny publiczny URL w Google Cloud Console
-10. BASE_URL w .env — ustawic na produkcyjny publiczny URL
+### Faza 2: VPS setup i deploy
+6. Caddy reverse proxy — auto-SSL (Let's Encrypt), zero konfiguracji certyfikatow
+7. pm2 jako process manager — auto-restart, logi (`pm2 logs`), `pm2 startup` dla autostartu
+8. Google OAuth redirect URI — ustawic na produkcyjny URL w Google Cloud Console
+9. BASE_URL w .env — ustawic na produkcyjny URL
 
-### Faza 3: Opcjonalne
-11. Health check endpoint — GET /api/health (bez auth)
-12. Structured logging (pino/winston)
-13. SQLite backup cron
+### Deploy / aktualizacja
+```bash
+# Jednorazowy setup VPS
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -
+sudo apt install nodejs caddy
+npm install -g pm2
+
+# Deploy apki
+git clone git@github.com:Gidzior/good_morning.git
+cd good_morning && npm install
+cd frontend && npm install && npm run build && cd ..
+cp .env.example .env  # uzupelnic sekrety
+NODE_ENV=production pm2 start src/server.ts --interpreter ts-node
+pm2 save && pm2 startup
+
+# Aktualizacja
+git pull && cd frontend && npm run build && cd .. && pm2 restart all
+```
+
+### Po deploy (opcjonalne)
+10. SQLite backup cron — `sqlite3 data/dashboard.db ".backup data/backup.db"` raz dziennie

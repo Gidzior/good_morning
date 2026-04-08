@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import type { Request } from 'express';
 import cookieParser from 'cookie-parser';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import fetch, { Response } from 'node-fetch';
 import RSSParser from 'rss-parser';
@@ -25,6 +26,23 @@ const rssParser = new RSSParser();
 
 app.use(cookieParser());
 app.use(express.json());
+
+// --- Rate limiting ---
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,    // 1 minute
+  max: 10,                 // 10 requests per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Zbyt wiele prob logowania. Sprobuj za minute.' },
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,    // 1 minute
+  max: 300,                // 300 requests per minute (dashboard loads ~40-60 parallel requests)
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Zbyt wiele zapytan. Sprobuj za minute.' },
+});
 
 const json = (r: Response) => r.json();
 
@@ -71,11 +89,11 @@ const THIRTY_MIN = 30 * 60 * 1000;
 // Serve built React app
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
 
-// --- Auth routes (public) ---
-app.use('/auth', authRouter);
+// --- Auth routes (public, rate-limited) ---
+app.use('/auth', authLimiter, authRouter);
 
-// --- Protected API routes ---
-app.use('/api', requireAuth);
+// --- Protected API routes (rate-limited) ---
+app.use('/api', apiLimiter, requireAuth);
 
 // --- API: Widget preferences (enable/disable) ---
 app.get('/api/widget-prefs', (req, res) => {
