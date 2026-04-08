@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AreaChart, Area, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import type { ChartConfig } from '@/components/ui/chart';
-import type { ChartPoint } from '../types';
-import { PERIODS, CHART_CACHE_TTL } from '../config';
+import { PERIODS } from '../config';
+import { useChartData } from '../hooks/useChartData';
 import { fmtPLN, fmtChartDate } from '../utils';
 import Loading from './Loading';
 import { Button } from '@/components/ui/button';
@@ -23,9 +23,6 @@ export default function Crypto({ tick }: { tick: number }) {
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState('');
   const [period, setPeriod] = useState(30);
-  const [chart, setChart] = useState<ChartPoint[]>([]);
-  const [chartLoading, setChartLoading] = useState(true);
-  const chartCache = useRef(new Map<string, { data: ChartPoint[]; ts: number }>());
 
   const [showSettings, setShowSettings] = useState(false);
   const [available, setAvailable] = useState<CryptoDef[]>([]);
@@ -58,25 +55,8 @@ export default function Crypto({ tick }: { tick: number }) {
     ).then(r => { setResults(r); setLoading(false); });
   }, [cryptos, tick]);
 
-  const loadChart = useCallback(() => {
-    if (!active) return;
-    const key = `crypto-${active}-${period}`;
-    const entry = chartCache.current.get(key);
-    if (entry && Date.now() - entry.ts < CHART_CACHE_TTL) {
-      setChart(entry.data); setChartLoading(false); return;
-    }
-    setChartLoading(true);
-    fetch(`/api/crypto/${encodeURIComponent(active)}/history?days=${period}`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then((pts: ChartPoint[]) => {
-        const data = Array.isArray(pts) ? pts : [];
-        chartCache.current.set(key, { data, ts: Date.now() });
-        setChart(data); setChartLoading(false);
-      })
-      .catch((err) => { console.error('Failed to load crypto chart:', err); setChartLoading(false); });
-  }, [active, period]);
-
-  useEffect(() => { loadChart(); }, [loadChart, tick]);
+  const chartUrl = active ? `/api/crypto/${encodeURIComponent(active)}/history?days=${period}` : null;
+  const { chart, chartLoading } = useChartData(chartUrl, tick);
 
   const openSettings = () => {
     setShowSettings(true);
