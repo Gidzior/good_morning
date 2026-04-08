@@ -1,11 +1,14 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import config from './config';
+import { REFRESH_INTERVAL } from './config';
 import { useRefresh } from './hooks/useRefresh';
 import { useLayout } from './hooks/useLayout';
 import { useWidgetPrefs } from './hooks/useWidgetPrefs';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import AppSidebar from './components/AppSidebar';
 import DashboardHeader from './components/DashboardHeader';
 import DashboardGrid from './components/DashboardGrid';
@@ -31,7 +34,7 @@ interface RssWidgetData {
 type Page = 'dashboard' | 'account';
 
 function Dashboard() {
-  const { lastUpdate, countdown, refresh, tick } = useRefresh(config.REFRESH_INTERVAL);
+  const { lastUpdate, countdown, refresh, tick } = useRefresh(REFRESH_INTERVAL);
   const [now, setNow] = useState(new Date());
   const [page, setPage] = useState<Page>('dashboard');
   const [rssWidgets, setRssWidgets] = useState<RssWidgetData[]>([]);
@@ -55,13 +58,15 @@ function Dashboard() {
     return () => clearInterval(id);
   }, []);
 
-  const addRssWidget = useCallback(async () => {
-    const name = prompt('Nazwa widgetu RSS:');
-    if (!name) return;
+  const [rssDialogOpen, setRssDialogOpen] = useState(false);
+  const [rssName, setRssName] = useState('');
+
+  const addRssWidget = useCallback(async (name: string) => {
+    if (!name.trim()) return;
     await fetch('/api/rss-widgets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name: name.trim() }),
     });
     loadRssWidgets();
   }, [loadRssWidgets]);
@@ -128,7 +133,7 @@ function Dashboard() {
           editMode={editMode}
           onToggleEdit={() => setEditMode(!editMode)}
           onResetLayout={resetLayout}
-          onAddRss={addRssWidget}
+          onAddRss={() => { setRssName(''); setRssDialogOpen(true); }}
           rssWidgets={rssWidgets.map(w => ({ id: w.id, name: w.name }))}
           isWidgetEnabled={isEnabled}
           onEnableWidget={handleEnableWidget}
@@ -149,6 +154,34 @@ function Dashboard() {
             )}
           </div>
         </SidebarInset>
+        <Dialog open={rssDialogOpen} onOpenChange={setRssDialogOpen}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Nowy widget RSS</DialogTitle>
+            </DialogHeader>
+            <Input
+              placeholder="Nazwa widgetu"
+              value={rssName}
+              onChange={(e) => setRssName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && rssName.trim()) {
+                  addRssWidget(rssName);
+                  setRssDialogOpen(false);
+                }
+              }}
+              autoFocus
+            />
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setRssDialogOpen(false)}>Anuluj</Button>
+              <Button
+                disabled={!rssName.trim()}
+                onClick={() => { addRssWidget(rssName); setRssDialogOpen(false); }}
+              >
+                Dodaj
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </SidebarProvider>
     </TooltipProvider>
   );

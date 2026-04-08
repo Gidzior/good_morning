@@ -2,26 +2,18 @@ import type { ReactNode } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Settings } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface DashboardCardProps {
   icon: string;
   title: string;
-  span?: 2 | 3;
   action?: ReactNode;
   onSettings?: () => void;
   children: ReactNode;
 }
 
-export default function DashboardCard({ icon, title, span, action, onSettings, children }: DashboardCardProps) {
+export default function DashboardCard({ icon, title, action, onSettings, children }: DashboardCardProps) {
   return (
-    <Card
-      className={cn(
-        'border-border bg-card shadow-sm hover:shadow-md transition-shadow',
-        span === 2 && 'col-span-2',
-        span === 3 && 'col-span-3',
-      )}
-    >
+    <Card className="border-border bg-card shadow-sm hover:shadow-md transition-shadow">
       <CardHeader className="!flex !flex-row items-center gap-2.5 border-b border-border pb-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xl">
           {icon}

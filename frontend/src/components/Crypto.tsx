@@ -115,7 +115,7 @@ export default function Crypto({ tick }: { tick: number }) {
   const chartConfig = { value: { label: activeTicker?.symbol ?? 'Kurs', color: 'var(--chart-1)' } } satisfies ChartConfig;
 
   return (
-    <Card icon="🪙" title="Kryptowaluty" span={3} onSettings={openSettings}>
+    <Card icon="🪙" title="Kryptowaluty" onSettings={openSettings}>
       {loading ? <Loading text="Ladowanie krypto..." /> :
        results.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground">

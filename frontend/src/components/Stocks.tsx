@@ -124,7 +124,7 @@ export default function Stocks({ tick }: { tick: number }) {
   const chartConfig = { value: { label: activeTicker?.name ?? 'Kurs', color: 'var(--chart-1)' } } satisfies ChartConfig;
 
   return (
-    <Card icon="📈" title="Akcje" span={3} onSettings={() => setShowSettings(true)}>
+    <Card icon="📈" title="Akcje" onSettings={() => setShowSettings(true)}>
       {loading ? <Loading text="Ladowanie kursow..." /> :
        results.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground">

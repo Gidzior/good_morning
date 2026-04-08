@@ -237,7 +237,6 @@ const stmts = {
   deleteAllUserCurrencies: db.prepare(`DELETE FROM user_currencies WHERE user_id = ?`),
   deleteAllUserStocks: db.prepare(`DELETE FROM user_stocks WHERE user_id = ?`),
   deleteAllCalendarPrefs: db.prepare(`DELETE FROM user_calendar_prefs WHERE user_id = ?`),
-  deleteAllRssWidgets: db.prepare(`DELETE FROM user_rss_widgets WHERE user_id = ? AND id = ?`),
 };
 
 // --- Public API ---

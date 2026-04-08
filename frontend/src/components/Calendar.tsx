@@ -56,7 +56,7 @@ export default function Calendar({ tick }: { tick: number }) {
   }, [tick]);
 
   return (
-    <Card icon="📆" title="Kalendarz — najbliższe 3 dni" span={2}>
+    <Card icon="📆" title="Kalendarz — najbliższe 3 dni">
       {noKey ? (
         <div className="cal-empty">
           Zaloguj się do kalendarza Google
