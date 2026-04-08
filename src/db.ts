@@ -333,17 +333,19 @@ export function getCalendarPrefs(userId: string): CalendarPref[] {
   return stmts.getCalendarPrefs.all(userId) as CalendarPref[];
 }
 
-export function saveCalendarPrefs(userId: string, prefs: { calendar_id: string; calendar_name: string; enabled: boolean }[]): void {
-  stmts.deleteCalendarPrefs.run(userId);
-  for (const p of prefs) {
-    stmts.upsertCalendarPref.run({
-      user_id: userId,
-      calendar_id: p.calendar_id,
-      calendar_name: p.calendar_name,
-      enabled: p.enabled ? 1 : 0,
-    });
-  }
-}
+export const saveCalendarPrefs = db.transaction(
+  (userId: string, prefs: { calendar_id: string; calendar_name: string; enabled: boolean }[]) => {
+    stmts.deleteCalendarPrefs.run(userId);
+    for (const p of prefs) {
+      stmts.upsertCalendarPref.run({
+        user_id: userId,
+        calendar_id: p.calendar_id,
+        calendar_name: p.calendar_name,
+        enabled: p.enabled ? 1 : 0,
+      });
+    }
+  },
+);
 
 export function getLayout(userId: string): unknown | null {
   const row = stmts.getLayout.get(userId) as { layout_json: string } | undefined;
@@ -428,7 +430,14 @@ export function deleteRssWidget(userId: string, widgetId: string): void {
   stmts.deleteRssWidget.run(widgetId, userId);
 }
 
-export function addRssFeed(widgetId: string, url: string, name: string, articlesCount: number): RssFeed {
+/** Verify that widgetId belongs to userId, throw if not */
+function verifyWidgetOwner(userId: string, widgetId: string): void {
+  const row = db.prepare('SELECT 1 FROM user_rss_widgets WHERE id = ? AND user_id = ?').get(widgetId, userId) as unknown;
+  if (!row) throw new Error('Widget not found or not owned by user');
+}
+
+export function addRssFeed(userId: string, widgetId: string, url: string, name: string, articlesCount: number): RssFeed {
+  verifyWidgetOwner(userId, widgetId);
   const cnt = (stmts.countRssFeeds.get(widgetId) as { cnt: number }).cnt;
   if (cnt >= 5) throw new Error('Max 5 feeds per widget');
   const id = uuidv4();
@@ -436,7 +445,8 @@ export function addRssFeed(widgetId: string, url: string, name: string, articles
   return { id, url, name, articles_count: articlesCount };
 }
 
-export function deleteRssFeed(widgetId: string, feedId: string): void {
+export function deleteRssFeed(userId: string, widgetId: string, feedId: string): void {
+  verifyWidgetOwner(userId, widgetId);
   stmts.deleteRssFeed.run(feedId, widgetId);
 }
 

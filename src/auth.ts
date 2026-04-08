@@ -226,13 +226,13 @@ export function getOAuth2ClientForUser(userId: string): ReturnType<typeof create
     expiry_date: token.expires_at ? new Date(token.expires_at).getTime() : undefined,
   });
 
-  // Auto-refresh tokens and persist
+  // Auto-refresh tokens and persist (keep existing refresh_token if not returned)
   oauth2Client.on('tokens', (newTokens) => {
     const newExpires = newTokens.expiry_date ? new Date(newTokens.expiry_date) : null;
     upsertToken(
       userId,
       newTokens.access_token || token.access_token,
-      newTokens.refresh_token || null,
+      newTokens.refresh_token || token.refresh_token,
       newTokens.scope || token.scope,
       newExpires,
     );

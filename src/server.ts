@@ -44,7 +44,11 @@ const apiLimiter = rateLimit({
   message: { error: 'Zbyt wiele zapytan. Sprobuj za minute.' },
 });
 
-const json = (r: Response) => r.json();
+/** Parse JSON response, throwing on HTTP errors */
+function json(r: Response): Promise<unknown> {
+  if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+  return r.json();
+}
 
 interface NbpRate {
   code: string;
@@ -114,6 +118,23 @@ app.put('/api/widget-prefs/:widgetId', (req, res) => {
   }
 
   res.json({ ok: true, savedLayout: restored });
+});
+
+// --- API: Quote of the day (proxy) ---
+app.get('/api/quote', async (_req, res) => {
+  try {
+    const r = await fetch('https://api.quotable.io/quotes/random?limit=1');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json() as { content: string; author: string }[];
+    if (data?.[0]) {
+      res.json({ text: data[0].content, author: data[0].author });
+    } else {
+      res.status(502).json({ error: 'Empty response from quote API' });
+    }
+  } catch (e) {
+    console.error('Quote API error:', errMsg(e));
+    res.status(502).json({ error: 'Quote API unavailable' });
+  }
 });
 
 // --- API: User cities CRUD ---
@@ -515,7 +536,7 @@ app.post('/api/rss-widgets/:id/feeds', (req, res) => {
   const url = rawUrl?.trim();
   if (!url || !name) return res.status(400).json({ error: 'url and name required' });
   try {
-    const feed = addRssFeed(req.params.id, url, name, articles_count || 3);
+    const feed = addRssFeed(userId(req), req.params.id, url, name, articles_count || 3);
     res.json(feed);
   } catch (e: unknown) {
     const msg = errMsg(e);
@@ -524,15 +545,37 @@ app.post('/api/rss-widgets/:id/feeds', (req, res) => {
 });
 
 app.delete('/api/rss-widgets/:widgetId/feeds/:feedId', (req, res) => {
-  deleteRssFeed(req.params.widgetId, req.params.feedId);
-  res.json({ ok: true });
+  try {
+    deleteRssFeed(userId(req), req.params.widgetId, req.params.feedId);
+    res.json({ ok: true });
+  } catch (e: unknown) {
+    res.status(403).json({ error: errMsg(e) });
+  }
 });
 
-// --- API: RSS proxy ---
+// --- API: RSS proxy (with SSRF protection) ---
 app.get('/api/rss', async (req, res) => {
-  const { url } = req.query;
+  const url = req.query.url as string | undefined;
+  if (!url) return res.status(400).json({ error: 'url required' });
+
+  // Only allow http/https, block private/internal URLs
   try {
-    const feed = await rssParser.parseURL(url as string);
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return res.status(400).json({ error: 'Only http/https URLs allowed' });
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    if (hostname === 'localhost' || hostname.startsWith('127.') || hostname.startsWith('10.')
+        || hostname.startsWith('192.168.') || hostname.startsWith('172.') || hostname === '0.0.0.0'
+        || hostname.endsWith('.local') || hostname === '169.254.169.254' || hostname === '[::1]') {
+      return res.status(400).json({ error: 'Internal URLs not allowed' });
+    }
+  } catch {
+    return res.status(400).json({ error: 'Invalid URL' });
+  }
+
+  try {
+    const feed = await rssParser.parseURL(url);
     res.json(feed);
   } catch (e: unknown) {
     const msg = errMsg(e);

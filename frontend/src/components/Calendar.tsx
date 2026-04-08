@@ -24,8 +24,8 @@ export default function Calendar({ tick }: { tick: number }) {
       .then(r => r.json())
       .then(data => {
         if (data.error) {
-          const msg = typeof data.error === 'string' ? data.error : data.error.message;
-          if (msg?.includes('ustawien')) {
+          const msg = data.error as string;
+          if (msg.includes('ustawien')) {
             setNoKey(true);
           } else {
             throw new Error(msg);

@@ -16,12 +16,9 @@ export default function Quote({ tick }: { tick: number }) {
   const [quote, setQuote] = useState<{ text: string; author: string } | null>(null);
 
   useEffect(() => {
-    fetch('https://api.quotable.io/quotes/random?limit=1')
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(data => {
-        if (data?.[0]) setQuote({ text: data[0].content, author: data[0].author });
-        else throw new Error();
-      })
+    fetch('/api/quote')
+      .then(r => { if (!r.ok) throw new Error(); return r.json() as Promise<{ text: string; author: string }>; })
+      .then(data => setQuote(data))
       .catch(() => {
         const q = FALLBACK_QUOTES[new Date().getDate() % FALLBACK_QUOTES.length];
         setQuote(q);

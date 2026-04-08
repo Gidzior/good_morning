@@ -74,7 +74,7 @@ export interface CalendarEvent {
 
 export interface CalendarResponse {
   items?: CalendarEvent[];
-  error?: { message: string };
+  error?: string;
 }
 
 export interface NamedayResponse {
