@@ -90,6 +90,23 @@ function cached<T>(key: string, ttlMs: number, fetcher: () => Promise<T>): Promi
 
 const THIRTY_MIN = 30 * 60 * 1000;
 
+interface ChartPoint { date: string; value: number }
+
+/** Shared handler for cached history endpoints — DRY wrapper for try/cached/res.json/catch */
+async function cachedHistoryHandler(
+  res: express.Response,
+  cacheKey: string,
+  fetcher: () => Promise<ChartPoint[]>,
+): Promise<void> {
+  try {
+    const points = await cached(cacheKey, THIRTY_MIN, fetcher);
+    res.json(points);
+  } catch (e: unknown) {
+    console.error(`History error [${cacheKey}]:`, errMsg(e));
+    res.status(502).json({ error: 'History data unavailable' });
+  }
+}
+
 // Serve built React app
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
 
@@ -252,47 +269,25 @@ app.get('/api/currencies', async (_req, res) => {
 app.get('/api/currencies/history/:code', async (req, res) => {
   const { code } = req.params;
   const days = Math.min(Number(req.query.days) || 30, 365);
-  const cacheKey = `nbp-${code}-${days}`;
-
-  try {
-    const points = await cached(cacheKey, THIRTY_MIN, async () => {
-      const url = `https://api.nbp.pl/api/exchangerates/rates/A/${code}/last/${days}/?format=json`;
-      const data = await fetch(url).then(json) as { rates: { effectiveDate: string; mid: number }[] };
-      return (data.rates || []).map(r => ({
-        date: r.effectiveDate,
-        value: r.mid,
-      }));
-    });
-    res.json(points);
-  } catch (e: unknown) {
-    const msg = errMsg(e);
-    res.status(500).json({ error: msg });
-  }
+  await cachedHistoryHandler(res, `nbp-${code}-${days}`, async () => {
+    const url = `https://api.nbp.pl/api/exchangerates/rates/A/${code}/last/${days}/?format=json`;
+    const data = await fetch(url).then(json) as { rates: { effectiveDate: string; mid: number }[] };
+    return (data.rates || []).map(r => ({ date: r.effectiveDate, value: r.mid }));
+  });
 });
 
 // --- API: Historical BTC/PLN (CoinGecko, cached 30min) ---
 app.get('/api/btc/history', async (_req, res) => {
   const days = Math.min(Number(_req.query.days) || 30, 365);
-  const cacheKey = `btc-history-${days}`;
-
-  try {
-    const result = await cached(cacheKey, THIRTY_MIN, async () => {
-      const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=pln&days=${days}`;
-      const data = await fetch(url).then(json) as { prices: [number, number][] };
-      const points = (data.prices || []).map(([ts, price]) => ({
-        date: new Date(ts).toISOString().slice(0, 10),
-        value: Math.round(price * 100) / 100,
-      }));
-      // Deduplicate by date (keep last entry per day)
-      const byDate = new Map<string, number>();
-      for (const p of points) byDate.set(p.date, p.value);
-      return Array.from(byDate, ([date, value]) => ({ date, value }));
-    });
-    res.json(result);
-  } catch (e: unknown) {
-    const msg = errMsg(e);
-    res.status(500).json({ error: msg });
-  }
+  await cachedHistoryHandler(res, `btc-history-${days}`, async () => {
+    const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=pln&days=${days}`;
+    const data = await fetch(url).then(json) as { prices: [number, number][] };
+    const byDate = new Map<string, number>();
+    for (const [ts, price] of data.prices || []) {
+      byDate.set(new Date(ts).toISOString().slice(0, 10), Math.round(price * 100) / 100);
+    }
+    return Array.from(byDate, ([date, value]) => ({ date, value }));
+  });
 });
 
 // --- API: Stocks (Yahoo Finance) ---
@@ -316,38 +311,28 @@ app.get('/api/stock/:symbol/history', async (req, res) => {
   const daysParam = Math.min(Number(req.query.days) || 30, 365);
   const rangeMap: Record<number, string> = { 7: '5d', 30: '1mo', 90: '3mo', 365: '1y' };
   const range = rangeMap[daysParam] || '1mo';
-  const cacheKey = `stock-${symbol}-${range}`;
-
-  try {
-    const points = await cached(cacheKey, THIRTY_MIN, async () => {
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d`;
-      const r = await fetch(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0' },
-      });
-      const data = await r.json() as {
-        chart: {
-          result: Array<{
-            timestamp: number[];
-            indicators: { quote: Array<{ close: (number | null)[] }> };
-          }>;
-        };
+  await cachedHistoryHandler(res, `stock-${symbol}-${range}`, async () => {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d`;
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const data = await r.json() as {
+      chart: {
+        result: Array<{
+          timestamp: number[];
+          indicators: { quote: Array<{ close: (number | null)[] }> };
+        }>;
       };
-      const result = data.chart?.result?.[0];
-      if (!result?.timestamp) return [];
-      const timestamps = result.timestamp;
-      const closes = result.indicators?.quote?.[0]?.close || [];
-      return timestamps
-        .map((ts, i) => ({
-          date: new Date(ts * 1000).toISOString().slice(0, 10),
-          value: closes[i] != null ? Math.round(closes[i]! * 100) / 100 : null,
-        }))
-        .filter((p): p is { date: string; value: number } => p.value !== null);
-    });
-    res.json(points);
-  } catch (e: unknown) {
-    const msg = errMsg(e);
-    res.status(500).json({ error: msg });
-  }
+    };
+    const result = data.chart?.result?.[0];
+    if (!result?.timestamp) return [];
+    const timestamps = result.timestamp;
+    const closes = result.indicators?.quote?.[0]?.close || [];
+    return timestamps
+      .map((ts, i) => ({
+        date: new Date(ts * 1000).toISOString().slice(0, 10),
+        value: closes[i] != null ? Math.round(closes[i]! * 100) / 100 : null,
+      }))
+      .filter((p): p is { date: string; value: number } => p.value !== null);
+  });
 });
 
 // --- API: User cryptos CRUD ---
@@ -409,21 +394,15 @@ app.get('/api/crypto/:symbol/history', async (req, res) => {
   };
   const geckoId = geckoMap[symbol.toUpperCase()] || symbol.toLowerCase();
 
-  try {
-    const result = await cached(cacheKey, THIRTY_MIN, async () => {
-      const url = `https://api.coingecko.com/api/v3/coins/${geckoId}/market_chart?vs_currency=pln&days=${days}`;
-      const data = await fetch(url).then(json) as { prices: [number, number][] };
-      const byDate = new Map<string, number>();
-      for (const [ts, price] of data.prices || []) {
-        byDate.set(new Date(ts).toISOString().slice(0, 10), Math.round(price * 100) / 100);
-      }
-      return Array.from(byDate, ([date, value]) => ({ date, value }));
-    });
-    res.json(result);
-  } catch (e) {
-    console.error('Crypto history error:', errMsg(e));
-    res.status(502).json({ error: 'Crypto history unavailable' });
-  }
+  await cachedHistoryHandler(res, cacheKey, async () => {
+    const url = `https://api.coingecko.com/api/v3/coins/${geckoId}/market_chart?vs_currency=pln&days=${days}`;
+    const data = await fetch(url).then(json) as { prices: [number, number][] };
+    const byDate = new Map<string, number>();
+    for (const [ts, price] of data.prices || []) {
+      byDate.set(new Date(ts).toISOString().slice(0, 10), Math.round(price * 100) / 100);
+    }
+    return Array.from(byDate, ([date, value]) => ({ date, value }));
+  });
 });
 
 // --- API: User currencies CRUD ---

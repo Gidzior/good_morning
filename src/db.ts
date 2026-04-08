@@ -12,6 +12,16 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+/** Safely parse JSON from DB, returning undefined on malformed data */
+function safeJsonParse(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    console.error('Malformed JSON in DB:', e);
+    return undefined;
+  }
+}
+
 // --- Schema ---
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -349,7 +359,7 @@ export const saveCalendarPrefs = db.transaction(
 export function getLayout(userId: string): unknown | null {
   const row = stmts.getLayout.get(userId) as { layout_json: string } | undefined;
   if (!row) return null;
-  return JSON.parse(row.layout_json) as unknown;
+  return safeJsonParse(row.layout_json) ?? null;
 }
 
 export function saveLayout(userId: string, layout: unknown): void {
@@ -463,7 +473,7 @@ export function getWidgetPrefs(userId: string): Record<string, WidgetPrefData> {
   for (const r of rows) {
     prefs[r.widget_id] = {
       enabled: r.enabled === 1,
-      savedLayout: r.saved_layout ? JSON.parse(r.saved_layout) as Record<string, unknown> : undefined,
+      savedLayout: r.saved_layout ? safeJsonParse(r.saved_layout) as Record<string, unknown> | undefined : undefined,
     };
   }
   return prefs;
@@ -477,7 +487,7 @@ export function setWidgetEnabled(
     // Get saved layout before deleting the row
     const rows = stmts.getWidgetPrefs.all(userId) as WidgetPrefRow[];
     const row = rows.find(r => r.widget_id === widgetId);
-    const restored = row?.saved_layout ? JSON.parse(row.saved_layout) as Record<string, unknown> : undefined;
+    const restored = row?.saved_layout ? safeJsonParse(row.saved_layout) as Record<string, unknown> | undefined : undefined;
     stmts.deleteWidgetPref.run(userId, widgetId);
     return restored;
   } else {
