@@ -53,7 +53,8 @@ export default function Stocks({ tick }: { tick: number }) {
           const price = meta.regularMarketPrice;
           const prev = meta.chartPreviousClose || meta.previousClose;
           return { symbol: stock.symbol, name: stock.name, price, change: ((price - prev) / prev) * 100, currency: meta.currency || 'PLN' };
-        } catch {
+        } catch (err) {
+          console.error(`Failed to fetch stock ${stock.symbol}:`, err);
           return { symbol: stock.symbol, name: stock.name, error: true };
         }
       })
@@ -75,7 +76,7 @@ export default function Stocks({ tick }: { tick: number }) {
         chartCache.current.set(key, { data, ts: Date.now() });
         setChart(data); setChartLoading(false);
       })
-      .catch(() => setChartLoading(false));
+      .catch((err) => { console.error('Failed to load stock chart:', err); setChartLoading(false); });
   }, [active, period]);
 
   useEffect(() => { loadChart(); }, [loadChart, tick]);
@@ -89,7 +90,7 @@ export default function Stocks({ tick }: { tick: number }) {
       fetch(`/api/stocks/search?q=${encodeURIComponent(val)}`)
         .then(r => r.json())
         .then((data: SearchResult[]) => { setSearchResults(data); setSearching(false); })
-        .catch(() => setSearching(false));
+        .catch((err) => { console.error('Stock search failed:', err); setSearching(false); });
     }, 300);
   };
 

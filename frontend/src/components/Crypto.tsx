@@ -49,7 +49,8 @@ export default function Crypto({ tick }: { tick: number }) {
           const price = parseFloat(data.ticker.rate);
           const prev = parseFloat(data.ticker.previousRate);
           return { symbol: c.symbol, name: c.name, price, change: prev ? ((price - prev) / prev) * 100 : 0 };
-        } catch {
+        } catch (err) {
+          console.error(`Failed to fetch crypto ${c.symbol}:`, err);
           return { symbol: c.symbol, name: c.name, price: 0, change: 0, error: true };
         }
       })
@@ -71,7 +72,7 @@ export default function Crypto({ tick }: { tick: number }) {
         chartCache.current.set(key, { data, ts: Date.now() });
         setChart(data); setChartLoading(false);
       })
-      .catch(() => setChartLoading(false));
+      .catch((err) => { console.error('Failed to load crypto chart:', err); setChartLoading(false); });
   }, [active, period]);
 
   useEffect(() => { loadChart(); }, [loadChart, tick]);

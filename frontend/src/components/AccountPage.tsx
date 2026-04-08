@@ -53,8 +53,8 @@ export default function AccountPage({ onBack, lastUpdate, countdown, onRefresh }
         const primary = data.calendars.find(c => c.primary);
         setEnabledIds(new Set(primary ? [primary.id] : []));
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error('Failed to fetch calendars:', err);
     } finally {
       setLoadingCals(false);
     }

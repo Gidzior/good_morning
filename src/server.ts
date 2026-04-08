@@ -174,7 +174,7 @@ app.get('/api/cities/search', async (req, res) => {
     })));
   } catch (e) {
     console.error('City search error:', errMsg(e));
-    res.json([]);
+    res.status(502).json({ error: 'City search unavailable' });
   }
 });
 
@@ -379,7 +379,7 @@ app.get('/api/cryptos/available', async (_req, res) => {
     res.json(data);
   } catch (e) {
     console.error('Zonda pairs error:', errMsg(e));
-    res.json([]);
+    res.status(502).json({ error: 'Zonda API unavailable' });
   }
 });
 
@@ -422,7 +422,7 @@ app.get('/api/crypto/:symbol/history', async (req, res) => {
     res.json(result);
   } catch (e) {
     console.error('Crypto history error:', errMsg(e));
-    res.json([]);
+    res.status(502).json({ error: 'Crypto history unavailable' });
   }
 });
 
@@ -452,7 +452,7 @@ app.get('/api/currencies/available', async (_req, res) => {
     res.json(data);
   } catch (e) {
     console.error('NBP currencies error:', errMsg(e));
-    res.json([]);
+    res.status(502).json({ error: 'NBP API unavailable' });
   }
 });
 
@@ -503,7 +503,7 @@ app.get('/api/stocks/search', async (req, res) => {
     res.json(results);
   } catch (e) {
     console.error('Stock search error:', errMsg(e));
-    res.json([]);
+    res.status(502).json({ error: 'Stock search unavailable' });
   }
 });
 

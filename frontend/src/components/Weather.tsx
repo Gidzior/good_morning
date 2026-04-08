@@ -52,7 +52,7 @@ export default function Weather({ tick }: { tick: number }) {
     fetch(`/api/weather?lat=${selected.lat}&lon=${selected.lon}`)
       .then(r => r.json())
       .then(d => { setData(d); setError(''); })
-      .catch(e => setError(e.message));
+      .catch(e => { console.error('Weather fetch error:', e); setError(e instanceof Error ? e.message : 'Unknown error'); });
   }, [tick, selected?.lat, selected?.lon]);
 
   const handleSearch = (val: string) => {
@@ -64,7 +64,7 @@ export default function Weather({ tick }: { tick: number }) {
       fetch(`/api/cities/search?q=${encodeURIComponent(val)}`)
         .then(r => r.json())
         .then((data: SearchResult[] | unknown) => { setSearchResults(Array.isArray(data) ? data : []); setSearching(false); })
-        .catch(() => setSearching(false));
+        .catch((err) => { console.error('City search failed:', err); setSearching(false); });
     }, 400);
   };
 

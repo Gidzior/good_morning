@@ -53,7 +53,8 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
               pubDate: item.pubDate || item.isoDate || '',
               source: feed.name,
             }));
-        } catch {
+        } catch (err) {
+          console.error(`Failed to fetch RSS feed ${feed.name}:`, err);
           return [];
         }
       })

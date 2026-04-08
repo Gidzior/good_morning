@@ -19,7 +19,8 @@ export default function Quote({ tick }: { tick: number }) {
     fetch('/api/quote')
       .then(r => { if (!r.ok) throw new Error(); return r.json() as Promise<{ text: string; author: string }>; })
       .then(data => setQuote(data))
-      .catch(() => {
+      .catch((err) => {
+        console.error('Quote fetch error:', err);
         const q = FALLBACK_QUOTES[new Date().getDate() % FALLBACK_QUOTES.length];
         setQuote(q);
       });

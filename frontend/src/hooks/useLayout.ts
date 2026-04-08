@@ -80,7 +80,7 @@ export function useLayout(rssWidgetIds: string[] = []) {
         }
         setLoaded(true);
       })
-      .catch(() => { setLayouts(defBp); setLoaded(true); });
+      .catch((err) => { console.error('Failed to load layout:', err); setLayouts(defBp); setLoaded(true); });
   }, [rssWidgetIds.join(',')]);
 
   const saveLayouts = useCallback((newLayouts: BreakpointLayouts) => {
@@ -90,7 +90,7 @@ export function useLayout(rssWidgetIds: string[] = []) {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ layout: newLayouts }),
-      }).catch(() => { /* silent */ });
+      }).catch((err) => { console.error('Failed to save layout:', err); });
     }, 800);
   }, []);
 

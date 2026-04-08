@@ -52,7 +52,7 @@ export default function Calendar({ tick }: { tick: number }) {
         setDays(grouped);
         setLoading(false);
       })
-      .catch(e => { setError(e.message); setLoading(false); });
+      .catch(e => { console.error('Calendar fetch error:', e); setError(e instanceof Error ? e.message : 'Unknown error'); setLoading(false); });
   }, [tick]);
 
   return (

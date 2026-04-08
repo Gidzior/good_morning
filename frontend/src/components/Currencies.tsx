@@ -48,7 +48,8 @@ export default function Currencies({ tick }: { tick: number }) {
           const data = await res.json();
           const change = data.prev ? ((data.mid - data.prev) / data.prev) * 100 : 0;
           return { code: c.code, name: c.name, mid: data.mid, change };
-        } catch {
+        } catch (err) {
+          console.error(`Failed to fetch currency ${c.code}:`, err);
           return { code: c.code, name: c.name, mid: 0, change: 0, error: true };
         }
       })
@@ -70,7 +71,7 @@ export default function Currencies({ tick }: { tick: number }) {
         chartCache.current.set(key, { data, ts: Date.now() });
         setChart(data); setChartLoading(false);
       })
-      .catch(() => setChartLoading(false));
+      .catch((err) => { console.error('Failed to load currency chart:', err); setChartLoading(false); });
   }, [active, period]);
 
   useEffect(() => { loadChart(); }, [loadChart, tick]);

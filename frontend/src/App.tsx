@@ -45,7 +45,7 @@ function Dashboard() {
     fetch('/api/rss-widgets')
       .then(r => r.json())
       .then((data: RssWidgetData[]) => { setRssWidgets(data); setRssLoaded(true); })
-      .catch(() => setRssLoaded(true));
+      .catch((err) => { console.error('Failed to load RSS widgets:', err); setRssLoaded(true); });
   }, []);
 
   useEffect(() => { loadRssWidgets(); }, [loadRssWidgets]);
