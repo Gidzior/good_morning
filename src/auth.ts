@@ -6,11 +6,13 @@ import type { SessionWithUser, UserToken } from './db';
 
 const IS_PROD = process.env.NODE_ENV === 'production';
 
-/** Shared cookie options — secure + strict in production */
+/** Shared cookie options — secure + lax in production.
+ *  Lax (not Strict) because Google OAuth callback is a cross-site redirect
+ *  and Strict would block the cookie on first navigation after login. */
 function sessionCookie(sessionId: string): [string, string, CookieOptions] {
   return ['session_id', sessionId, {
     httpOnly: true,
-    sameSite: IS_PROD ? 'strict' : 'lax',
+    sameSite: 'lax',
     secure: IS_PROD,
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
   }];

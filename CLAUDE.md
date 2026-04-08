@@ -111,7 +111,7 @@ Przed commitem: `lint && build` musza przejsc.
 
 ### Faza 1: Security hardening ✅ DONE
 1. ✅ `/auth/dev-login` — guard `NODE_ENV !== 'production'` (src/auth.ts)
-2. ✅ Cookie `secure: true` w produkcji + `SameSite=Strict` — via `sessionCookie()` helper
+2. ✅ Cookie `secure: true` w produkcji + `SameSite=Lax` — via `sessionCookie()` helper (Lax, nie Strict — Google OAuth callback to cross-site redirect)
 3. ⚠️ SESSION_SECRET — silny (32+ znakow) w .env produkcyjnym (do ustawienia na VPS)
 4. ✅ Rate limiting — `express-rate-limit` (/auth: 10 req/min, /api: 300 req/min)
 
