@@ -7,7 +7,7 @@ import fetch, { Response } from 'node-fetch';
 import RSSParser from 'rss-parser';
 import { google } from 'googleapis';
 import authRouter, { requireAuth, getOAuth2ClientForUser } from './auth';
-import { getCalendarPrefs, saveCalendarPrefs, getLayout, saveLayout, getUserStocks, addUserStock, deleteUserStock, getUserCryptos, addUserCrypto, deleteUserCrypto, getUserCurrencies, addUserCurrency, deleteUserCurrency, getRssWidgets, createRssWidget, updateRssWidget, deleteRssWidget, addRssFeed, deleteRssFeed, getUserCities, addUserCity, deleteUserCity } from './db';
+import { getCalendarPrefs, saveCalendarPrefs, getLayout, saveLayout, getUserStocks, addUserStock, deleteUserStock, getUserCryptos, addUserCrypto, deleteUserCrypto, getUserCurrencies, addUserCurrency, deleteUserCurrency, getRssWidgets, createRssWidget, updateRssWidget, deleteRssWidget, addRssFeed, deleteRssFeed, getUserCities, addUserCity, deleteUserCity, getWidgetPrefs, setWidgetEnabled, clearWidgetData } from './db';
 
 /** Extract authenticated user ID — safe after requireAuth middleware */
 function userId(req: Request): string {
@@ -76,6 +76,27 @@ app.use('/auth', authRouter);
 
 // --- Protected API routes ---
 app.use('/api', requireAuth);
+
+// --- API: Widget preferences (enable/disable) ---
+app.get('/api/widget-prefs', (req, res) => {
+  res.json(getWidgetPrefs(userId(req)));
+});
+
+app.put('/api/widget-prefs/:widgetId', (req, res) => {
+  const { widgetId } = req.params;
+  const { enabled, deleteData, savedLayout } = req.body as {
+    enabled: boolean; deleteData?: boolean; savedLayout?: Record<string, unknown>;
+  };
+  if (typeof enabled !== 'boolean') return res.status(400).json({ error: 'enabled (boolean) required' });
+
+  const restored = setWidgetEnabled(userId(req), widgetId, enabled, savedLayout);
+
+  if (!enabled && deleteData) {
+    clearWidgetData(userId(req), widgetId);
+  }
+
+  res.json({ ok: true, savedLayout: restored });
+});
 
 // --- API: User cities CRUD ---
 app.get('/api/user-cities', (req, res) => {

@@ -109,5 +109,32 @@ export function useLayout(rssWidgetIds: string[] = []) {
     saveLayouts(defBp);
   }, [saveLayouts, rssWidgetIds]);
 
-  return { layouts, loaded, editMode, setEditMode, onLayoutChange, resetLayout };
+  /** Merge saved per-breakpoint layout for a widget back into layouts */
+  const restoreWidgetLayout = useCallback((saved: BreakpointLayouts) => {
+    setLayouts(prev => {
+      const updated = { ...prev };
+      for (const bp of ['lg', 'md', 'sm'] as Breakpoint[]) {
+        const items = saved[bp];
+        if (!items?.length) continue;
+        const savedMap = new Map(items.map(l => [l.i, l]));
+        updated[bp] = prev[bp].map(l => {
+          const s = savedMap.get(l.i);
+          return s ? { ...l, ...s } : l;
+        });
+      }
+      saveLayouts(updated);
+      return updated;
+    });
+  }, [saveLayouts]);
+
+  /** Extract a single widget's layout from all breakpoints */
+  const getWidgetLayout = useCallback((widgetId: string): BreakpointLayouts => {
+    return {
+      lg: layouts.lg.filter(l => l.i === widgetId),
+      md: layouts.md.filter(l => l.i === widgetId),
+      sm: layouts.sm.filter(l => l.i === widgetId),
+    };
+  }, [layouts]);
+
+  return { layouts, loaded, editMode, setEditMode, onLayoutChange, resetLayout, restoreWidgetLayout, getWidgetLayout };
 }

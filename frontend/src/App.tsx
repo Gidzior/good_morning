@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import config from './config';
 import { useRefresh } from './hooks/useRefresh';
 import { useLayout } from './hooks/useLayout';
+import { useWidgetPrefs } from './hooks/useWidgetPrefs';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -35,6 +36,7 @@ function Dashboard() {
   const [page, setPage] = useState<Page>('dashboard');
   const [rssWidgets, setRssWidgets] = useState<RssWidgetData[]>([]);
   const [rssLoaded, setRssLoaded] = useState(false);
+  const { loaded: prefsLoaded, isEnabled, enableWidget, disableWidget } = useWidgetPrefs();
 
   const loadRssWidgets = useCallback(() => {
     fetch('/api/rss-widgets')
@@ -46,7 +48,7 @@ function Dashboard() {
   useEffect(() => { loadRssWidgets(); }, [loadRssWidgets]);
 
   const rssWidgetIds = useMemo(() => rssWidgets.map(w => `rss-${w.id}` as const), [rssWidgets]);
-  const { layouts, loaded, editMode, setEditMode, onLayoutChange, resetLayout } = useLayout(rssWidgetIds);
+  const { layouts, loaded, editMode, setEditMode, onLayoutChange, resetLayout, restoreWidgetLayout, getWidgetLayout } = useLayout(rssWidgetIds);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -64,13 +66,25 @@ function Dashboard() {
     loadRssWidgets();
   }, [loadRssWidgets]);
 
-  const deleteRssWidget = useCallback(async (widgetId: string) => {
-    if (!confirm('Usunac widget RSS?')) return;
-    await fetch(`/api/rss-widgets/${widgetId}`, { method: 'DELETE' });
-    loadRssWidgets();
-  }, [loadRssWidgets]);
+  const handleDisableWidget = useCallback(async (widgetId: string, deleteData: boolean) => {
+    // Save widget's current layout before disabling
+    const widgetLayout = getWidgetLayout(widgetId);
+    await disableWidget(widgetId, { deleteData, savedLayout: widgetLayout });
+    // If RSS widget was hard-deleted, reload the list
+    if (deleteData && widgetId.startsWith('rss-')) {
+      loadRssWidgets();
+    }
+  }, [disableWidget, loadRssWidgets, getWidgetLayout]);
 
-  const widgets = useMemo(() => {
+  const handleEnableWidget = useCallback(async (widgetId: string) => {
+    const savedLayout = await enableWidget(widgetId);
+    // Restore saved layout dimensions if available
+    if (savedLayout) {
+      restoreWidgetLayout(savedLayout);
+    }
+  }, [enableWidget, restoreWidgetLayout]);
+
+  const allWidgets = useMemo(() => {
     const staticWidgets = [
       { id: 'weather' as WidgetId, node: <Weather tick={tick} /> },
       { id: 'quote' as WidgetId, node: <Quote tick={tick} /> },
@@ -85,6 +99,12 @@ function Dashboard() {
     }));
     return [...staticWidgets, ...rssEntries];
   }, [tick, rssWidgets, loadRssWidgets]);
+
+  // Filter to only enabled widgets
+  const visibleWidgets = useMemo(
+    () => allWidgets.filter(w => isEnabled(w.id)),
+    [allWidgets, isEnabled],
+  );
 
   if (page === 'account') {
     return (
@@ -109,13 +129,17 @@ function Dashboard() {
           onToggleEdit={() => setEditMode(!editMode)}
           onResetLayout={resetLayout}
           onAddRss={addRssWidget}
+          rssWidgets={rssWidgets.map(w => ({ id: w.id, name: w.name }))}
+          isWidgetEnabled={isEnabled}
+          onEnableWidget={handleEnableWidget}
+          onDisableWidget={handleDisableWidget}
         />
         <SidebarInset>
           <DashboardHeader now={now} />
           <div className="p-6 max-sm:p-4">
-            {loaded && rssLoaded ? (
+            {loaded && rssLoaded && prefsLoaded ? (
               <DashboardGrid
-                widgets={widgets}
+                widgets={visibleWidgets}
                 layouts={layouts}
                 editMode={editMode}
                 onLayoutChange={onLayoutChange}

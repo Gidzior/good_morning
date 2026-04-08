@@ -106,6 +106,14 @@ db.exec(`
     sort_order INTEGER NOT NULL DEFAULT 0
   );
 
+  CREATE TABLE IF NOT EXISTS user_widget_prefs (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    widget_id TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    saved_layout TEXT,
+    PRIMARY KEY (user_id, widget_id)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
   CREATE INDEX IF NOT EXISTS idx_rss_widgets_user ON user_rss_widgets(user_id);
@@ -215,6 +223,21 @@ const stmts = {
   `),
   deleteRssFeed: db.prepare(`DELETE FROM user_rss_feeds WHERE id = ? AND widget_id = ?`),
   countRssFeeds: db.prepare(`SELECT COUNT(*) as cnt FROM user_rss_feeds WHERE widget_id = ?`),
+
+  getWidgetPrefs: db.prepare(`SELECT widget_id, enabled, saved_layout FROM user_widget_prefs WHERE user_id = ?`),
+  upsertWidgetPref: db.prepare(`
+    INSERT INTO user_widget_prefs (user_id, widget_id, enabled, saved_layout)
+    VALUES (@user_id, @widget_id, @enabled, @saved_layout)
+    ON CONFLICT(user_id, widget_id) DO UPDATE SET enabled = @enabled, saved_layout = @saved_layout
+  `),
+  deleteWidgetPref: db.prepare(`DELETE FROM user_widget_prefs WHERE user_id = ? AND widget_id = ?`),
+
+  deleteAllUserCities: db.prepare(`DELETE FROM user_cities WHERE user_id = ?`),
+  deleteAllUserCryptos: db.prepare(`DELETE FROM user_cryptos WHERE user_id = ?`),
+  deleteAllUserCurrencies: db.prepare(`DELETE FROM user_currencies WHERE user_id = ?`),
+  deleteAllUserStocks: db.prepare(`DELETE FROM user_stocks WHERE user_id = ?`),
+  deleteAllCalendarPrefs: db.prepare(`DELETE FROM user_calendar_prefs WHERE user_id = ?`),
+  deleteAllRssWidgets: db.prepare(`DELETE FROM user_rss_widgets WHERE user_id = ? AND id = ?`),
 };
 
 // --- Public API ---
@@ -415,6 +438,67 @@ export function addRssFeed(widgetId: string, url: string, name: string, articles
 
 export function deleteRssFeed(widgetId: string, feedId: string): void {
   stmts.deleteRssFeed.run(feedId, widgetId);
+}
+
+// --- Widget Preferences ---
+interface WidgetPrefRow { widget_id: string; enabled: number; saved_layout: string | null; }
+
+export interface WidgetPrefData {
+  enabled: boolean;
+  savedLayout?: Record<string, unknown>;
+}
+
+export function getWidgetPrefs(userId: string): Record<string, WidgetPrefData> {
+  const rows = stmts.getWidgetPrefs.all(userId) as WidgetPrefRow[];
+  const prefs: Record<string, WidgetPrefData> = {};
+  for (const r of rows) {
+    prefs[r.widget_id] = {
+      enabled: r.enabled === 1,
+      savedLayout: r.saved_layout ? JSON.parse(r.saved_layout) as Record<string, unknown> : undefined,
+    };
+  }
+  return prefs;
+}
+
+/** Returns saved layout when re-enabling (before deleting the pref row) */
+export function setWidgetEnabled(
+  userId: string, widgetId: string, enabled: boolean, savedLayout?: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  if (enabled) {
+    // Get saved layout before deleting the row
+    const rows = stmts.getWidgetPrefs.all(userId) as WidgetPrefRow[];
+    const row = rows.find(r => r.widget_id === widgetId);
+    const restored = row?.saved_layout ? JSON.parse(row.saved_layout) as Record<string, unknown> : undefined;
+    stmts.deleteWidgetPref.run(userId, widgetId);
+    return restored;
+  } else {
+    stmts.upsertWidgetPref.run({
+      user_id: userId,
+      widget_id: widgetId,
+      enabled: 0,
+      saved_layout: savedLayout ? JSON.stringify(savedLayout) : null,
+    });
+    return undefined;
+  }
+}
+
+/** Delete all user data for a given static widget */
+export function clearWidgetData(userId: string, widgetId: string): void {
+  switch (widgetId) {
+    case 'weather': stmts.deleteAllUserCities.run(userId); break;
+    case 'crypto': stmts.deleteAllUserCryptos.run(userId); break;
+    case 'currencies': stmts.deleteAllUserCurrencies.run(userId); break;
+    case 'stocks': stmts.deleteAllUserStocks.run(userId); break;
+    case 'calendar': stmts.deleteAllCalendarPrefs.run(userId); break;
+    case 'quote': break; // stateless
+    default:
+      // RSS widget: delete the widget and its feeds (CASCADE)
+      if (widgetId.startsWith('rss-')) {
+        const rssId = widgetId.slice(4);
+        stmts.deleteRssWidget.run(rssId, userId);
+      }
+      break;
+  }
 }
 
 // Cleanup expired sessions on startup
