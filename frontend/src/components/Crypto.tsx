@@ -100,7 +100,7 @@ export default function Crypto({ tick }: { tick: number }) {
 
   return (
     <Card icon="🪙" title="Kryptowaluty" onSettings={openSettings}>
-      {loading ? <Loading text="Ladowanie krypto..." /> :
+      {loading ? <Loading text="Ładowanie krypto..." /> :
        results.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground">
           <p className="text-sm">Brak kryptowalut</p>
@@ -126,7 +126,7 @@ export default function Crypto({ tick }: { tick: number }) {
           </div>
 
           <div className="h-[190px] w-full">
-            {chartLoading ? <div className="flex h-full items-center justify-center"><Loading text="Ladowanie wykresu..." /></div> :
+            {chartLoading ? <div className="flex h-full items-center justify-center"><Loading text="Ładowanie wykresu..." /></div> :
              chart.length === 0 ? <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Brak danych</div> :
               <ChartContainer config={chartConfig} className="h-full w-full">
                 <AreaChart data={chart} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>
@@ -171,7 +171,7 @@ export default function Crypto({ tick }: { tick: number }) {
           ))}
         </div>
         <div className="text-xs font-medium text-muted-foreground mb-2">Twoje krypto ({cryptos.length})</div>
-        {cryptos.length === 0 ? <p className="text-sm text-muted-foreground">Brak — wybierz powyzej</p> : (
+        {cryptos.length === 0 ? <p className="text-sm text-muted-foreground">Brak — wybierz powyżej</p> : (
           <div className="space-y-1">
             {cryptos.map(c => (
               <div key={c.symbol} className="flex items-center justify-between rounded-lg border px-3 py-2">

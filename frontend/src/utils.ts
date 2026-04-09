@@ -34,6 +34,6 @@ export function fmtChartDate(dateStr: string, period: number): string {
 export function getGreeting(): string {
   const h = new Date().getHours();
   if (h < 6) return 'Dobranoc';
-  if (h < 18) return 'Dzien Dobry';
-  return 'Dobry Wieczor';
+  if (h < 18) return 'Dzień Dobry';
+  return 'Dobry Wieczór';
 }

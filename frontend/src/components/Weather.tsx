@@ -164,9 +164,9 @@ export default function Weather({ tick }: { tick: number }) {
             </div>
           </div>
         ) : error ? (
-          <ErrorMsg message={`Blad pogody: ${error}`} />
+          <ErrorMsg message={`Błąd pogody: ${error}`} />
         ) : !data ? (
-          <Loading text="Ladowanie pogody..." />
+          <Loading text="Ładowanie pogody..." />
         ) : data.current.cod !== 200 ? (
           <ErrorMsg message={`Blad: ${data.current.message}`} />
         ) : (
@@ -227,7 +227,7 @@ export default function Weather({ tick }: { tick: number }) {
         ) : noKey ? (
           <ErrorMsg message="Brak klucza API pogody" />
         ) : !data ? (
-          <Loading text="Ladowanie prognozy..." />
+          <Loading text="Ładowanie prognozy..." />
         ) : displayForecasts.length === 0 ? (
           <div className="cal-empty">Brak danych prognozy</div>
         ) : (
@@ -284,7 +284,7 @@ export default function Weather({ tick }: { tick: number }) {
 
             <div className="text-xs font-medium text-muted-foreground mb-2">Twoje miasta ({cities.length})</div>
             {cities.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Brak — wyszukaj i dodaj miasta powyzej</p>
+              <p className="text-sm text-muted-foreground">Brak — wyszukaj i dodaj miasta powyżej</p>
             ) : (
               <div className="space-y-1">
                 {cities.map(c => (

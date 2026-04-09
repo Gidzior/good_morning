@@ -9,7 +9,7 @@ export default function LoginPage() {
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-2xl text-primary-foreground">
             ☀
           </div>
-          <CardTitle className="text-xl font-bold text-foreground">Dzien Dobry</CardTitle>
+          <CardTitle className="text-xl font-bold text-foreground">Dzień Dobry</CardTitle>
           <p className="text-sm text-muted-foreground">
             Zaloguj sie aby uzyskac dostep do dashboardu
           </p>

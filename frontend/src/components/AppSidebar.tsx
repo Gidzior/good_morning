@@ -68,7 +68,7 @@ const STATIC_WIDGETS: WidgetMeta[] = [
   { id: 'calendar', icon: CalendarIcon, label: 'Kalendarz' },
   { id: 'crypto', icon: TrendingUpIcon, label: 'Kryptowaluty' },
   { id: 'currencies', icon: BarChart3Icon, label: 'Kursy walut' },
-  { id: 'stocks', icon: BarChart3Icon, label: 'Gielda' },
+  { id: 'stocks', icon: BarChart3Icon, label: 'Giełda' },
 ];
 
 export default function AppSidebar({
@@ -125,7 +125,7 @@ export default function AppSidebar({
               ☀
             </div>
             <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-              <span className="text-sm font-bold text-foreground">Dzien Dobry</span>
+              <span className="text-sm font-bold text-foreground">Dzień Dobry</span>
               <span className="text-[11px] text-muted-foreground">Poranny dashboard</span>
             </div>
           </div>
@@ -155,7 +155,7 @@ export default function AppSidebar({
                           size="icon-xs"
                           className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground group-data-[collapsible=icon]:hidden"
                           onClick={(e) => { e.stopPropagation(); handleToggle(widget.id, widget.label); }}
-                          title={enabled ? 'Wylacz widget' : 'Wlacz widget'}
+                          title={enabled ? 'Wyłącz widget' : 'Włącz widget'}
                         >
                           {enabled ? <EyeIcon className="size-3" /> : <EyeOffIcon className="size-3" />}
                         </Button>
@@ -165,9 +165,9 @@ export default function AppSidebar({
                 })}
                 {onAddTodo && (
                   <SidebarMenuItem>
-                    <SidebarMenuButton tooltip="Dodaj liste zadan" onClick={onAddTodo}>
+                    <SidebarMenuButton tooltip="Dodaj listę zadań" onClick={onAddTodo}>
                       <PlusIcon className="h-4 w-4" />
-                      <span>Dodaj liste zadan</span>
+                      <span>Dodaj listę zadań</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )}
@@ -241,7 +241,7 @@ export default function AppSidebar({
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                 }`}
-                title={editMode ? 'Zakoncz edycje' : 'Edytuj layout'}
+                title={editMode ? 'Zakończ edycję' : 'Edytuj layout'}
               >
                 <LayoutGridIcon className="h-3.5 w-3.5" />
                 <span className="group-data-[collapsible=icon]:hidden">
@@ -267,14 +267,14 @@ export default function AppSidebar({
           <div className="flex flex-col gap-2 pt-2 group-data-[collapsible=icon]:hidden">
             <div className="text-[11px] text-muted-foreground">
               <div>Aktualizacja: {fmtTime(lastUpdate)}</div>
-              {countdown && <div>Nastepna: {countdown}</div>}
+              {countdown && <div>Następna: {countdown}</div>}
             </div>
             <button
               onClick={onRefresh}
               className="flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-accent-indigo-light"
             >
               <RefreshCwIcon className="h-3 w-3" />
-              Odswiez
+              Odśwież
             </button>
           </div>
           <div className="hidden group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">

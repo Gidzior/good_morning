@@ -20,7 +20,7 @@ export default function DashboardHeader({ now }: DashboardHeaderProps) {
             {getGreeting()} <span className="text-primary">👋</span>
           </h1>
           <p className="text-xs text-muted-foreground">
-            {nameday ? `🎂 ${nameday}` : 'Twoj poranny dashboard briefingowy'}
+            {nameday ? `🎂 ${nameday}` : 'Twój poranny dashboard briefingowy'}
           </p>
         </div>
         <div className="text-right text-sm text-muted-foreground max-sm:hidden">

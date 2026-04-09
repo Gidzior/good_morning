@@ -98,7 +98,7 @@ export default function Currencies({ tick }: { tick: number }) {
 
   return (
     <Card icon="💱" title="Waluty" onSettings={openSettings}>
-      {loading ? <Loading text="Ladowanie walut..." /> :
+      {loading ? <Loading text="Ładowanie walut..." /> :
        results.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground">
           <p className="text-sm">Brak walut</p>
@@ -124,7 +124,7 @@ export default function Currencies({ tick }: { tick: number }) {
           </div>
 
           <div className="h-[190px] w-full">
-            {chartLoading ? <div className="flex h-full items-center justify-center"><Loading text="Ladowanie wykresu..." /></div> :
+            {chartLoading ? <div className="flex h-full items-center justify-center"><Loading text="Ładowanie wykresu..." /></div> :
              chart.length === 0 ? <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Brak danych</div> :
               <ChartContainer config={chartConfig} className="h-full w-full">
                 <AreaChart data={chart} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>
@@ -168,7 +168,7 @@ export default function Currencies({ tick }: { tick: number }) {
           ))}
         </div>
         <div className="text-xs font-medium text-muted-foreground mb-2">Twoje waluty ({currencies.length})</div>
-        {currencies.length === 0 ? <p className="text-sm text-muted-foreground">Brak — wybierz powyzej</p> : (
+        {currencies.length === 0 ? <p className="text-sm text-muted-foreground">Brak — wybierz powyżej</p> : (
           <div className="space-y-1">
             {currencies.map(c => (
               <div key={c.code} className="flex items-center justify-between rounded-lg border px-3 py-2">

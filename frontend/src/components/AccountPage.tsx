@@ -167,7 +167,7 @@ export default function AccountPage({ onBack, lastUpdate, countdown, onRefresh }
                     ) : (
                       <Badge variant="secondary" className="gap-1">
                         <UnlinkIcon className="h-3 w-3" />
-                        Nie polaczony
+                        Nie połączony
                       </Badge>
                     )}
                   </div>
@@ -194,7 +194,7 @@ export default function AccountPage({ onBack, lastUpdate, countdown, onRefresh }
                       Wybierz kalendarze do wyswietlania
                     </div>
                     {loadingCals ? (
-                      <Loading text="Ladowanie kalendarzy..." />
+                      <Loading text="Ładowanie kalendarzy..." />
                     ) : calendars.length === 0 ? (
                       <div className="text-xs text-muted-foreground">Brak kalendarzy</div>
                     ) : (
@@ -250,7 +250,7 @@ export default function AccountPage({ onBack, lastUpdate, countdown, onRefresh }
               <CardContent className="pt-6">
                 <Button variant="outline" className="gap-2 text-destructive hover:bg-destructive/10" onClick={logout}>
                   <LogOutIcon className="h-4 w-4" />
-                  Wyloguj sie
+                  Wyloguj się
                 </Button>
               </CardContent>
             </Card>

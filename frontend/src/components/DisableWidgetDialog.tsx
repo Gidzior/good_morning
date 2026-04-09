@@ -27,9 +27,9 @@ export default function DisableWidgetDialog({
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onCancel(); }}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Wylacz widget</DialogTitle>
+          <DialogTitle>Wyłącz widget</DialogTitle>
           <DialogDescription>
-            Jak chcesz wylaczyc <strong>{widgetName}</strong>?
+            Jak chcesz wyłączyć <strong>{widgetName}</strong>?
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2">

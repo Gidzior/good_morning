@@ -109,11 +109,11 @@ export default function Stocks({ tick }: { tick: number }) {
 
   return (
     <Card icon="📈" title="Akcje" onSettings={() => setShowSettings(true)}>
-      {loading ? <Loading text="Ladowanie kursow..." /> :
+      {loading ? <Loading text="Ładowanie kursów..." /> :
        results.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground">
           <p className="text-sm">Brak akcji do wyswietlenia</p>
-          <Button onClick={() => setShowSettings(true)}>+ Dodaj spolki</Button>
+          <Button onClick={() => setShowSettings(true)}>+ Dodaj spółki</Button>
         </div>
       ) : (
         <>
@@ -136,7 +136,7 @@ export default function Stocks({ tick }: { tick: number }) {
           </div>
 
           <div className="h-[190px] w-full">
-            {chartLoading ? <div className="flex h-full items-center justify-center"><Loading text="Ladowanie wykresu..." /></div> :
+            {chartLoading ? <div className="flex h-full items-center justify-center"><Loading text="Ładowanie wykresu..." /></div> :
              chart.length === 0 ? <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Brak danych dla wybranego okresu</div> :
               <ChartContainer config={chartConfig} className="h-full w-full">
                 <AreaChart data={chart} margin={{ top: 5, right: 5, left: 5, bottom: 0 }}>
@@ -166,7 +166,7 @@ export default function Stocks({ tick }: { tick: number }) {
 
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} title="Zarzadzaj spolkami">
         <Input type="text" value={query} onChange={e => handleSearch(e.target.value)}
-          placeholder="Szukaj spolki (np. orlen, allegro)..."
+          placeholder="Szukaj spółki (np. orlen, allegro)..."
           className="mb-3" autoFocus />
         {searching && <p className="mb-2 text-xs text-muted-foreground">Szukam...</p>}
         {searchResults.length > 0 && (
@@ -182,8 +182,8 @@ export default function Stocks({ tick }: { tick: number }) {
             ))}
           </div>
         )}
-        <div className="text-xs font-medium text-muted-foreground mb-2">Twoje spolki ({stocks.length})</div>
-        {stocks.length === 0 ? <p className="text-sm text-muted-foreground">Brak — wyszukaj i dodaj spolki powyzej</p> : (
+        <div className="text-xs font-medium text-muted-foreground mb-2">Twoje spółki ({stocks.length})</div>
+        {stocks.length === 0 ? <p className="text-sm text-muted-foreground">Brak — wyszukaj i dodaj spółki powyżej</p> : (
           <div className="space-y-1">
             {stocks.map(s => (
               <div key={s.symbol} className="flex items-center justify-between rounded-lg border px-3 py-2">

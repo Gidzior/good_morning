@@ -28,7 +28,7 @@ export default function Quote({ tick }: { tick: number }) {
 
   return (
     <Card icon="💬" title="Cytat dnia">
-      {!quote ? <Loading text="Ladowanie cytatu..." /> : (
+      {!quote ? <Loading text="Ładowanie cytatu..." /> : (
         <>
           <div className="quote-text">"{quote.text}"</div>
           <div className="quote-author">— {quote.author}</div>

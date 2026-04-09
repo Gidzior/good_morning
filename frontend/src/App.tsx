@@ -192,7 +192,7 @@ function Dashboard() {
                 onLayoutChange={onLayoutChange}
               />
             ) : (
-              <div className="text-sm text-muted-foreground">Ladowanie layoutu...</div>
+              <div className="text-sm text-muted-foreground">Ładowanie layoutu...</div>
             )}
           </div>
         </SidebarInset>
@@ -227,7 +227,7 @@ function Dashboard() {
         <Dialog open={todoDialogOpen} onOpenChange={setTodoDialogOpen}>
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle>Nowa lista zadan</DialogTitle>
+              <DialogTitle>Nowa lista zadań</DialogTitle>
             </DialogHeader>
             <Input
               placeholder="Nazwa listy"
@@ -267,7 +267,7 @@ function AppContent() {
           <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-2xl text-primary-foreground">
             ☀
           </div>
-          <div className="text-sm text-muted-foreground">Ladowanie...</div>
+          <div className="text-sm text-muted-foreground">Ładowanie...</div>
         </div>
       </div>
     );

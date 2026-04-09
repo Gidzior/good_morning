@@ -137,7 +137,7 @@ export default function TodoList({ listId, listName, tick }: TodoListProps) {
       {errorMsg ? (
         <div className="text-sm text-muted-foreground py-4 text-center">{errorMsg}</div>
       ) : loading ? (
-        <Loading text="Ladowanie zadan..." />
+        <Loading text="Ładowanie zadań..." />
       ) : (
         <div className="flex flex-col flex-1 min-h-0">
           <div className="flex gap-2 mb-3">
@@ -156,7 +156,7 @@ export default function TodoList({ listId, listName, tick }: TodoListProps) {
 
           {tasks.length === 0 ? (
             <div className="text-sm text-muted-foreground py-2 text-center">
-              Brak zadan — dodaj pierwsze powyzej
+              Brak zadań — dodaj pierwsze powyżej
             </div>
           ) : (
             <div className="space-y-1 min-h-0 flex-1 overflow-y-auto">
@@ -217,7 +217,7 @@ export default function TodoList({ listId, listName, tick }: TodoListProps) {
                   <button
                     onClick={() => deleteTask(task.id)}
                     className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
-                    title="Usun zadanie"
+                    title="Usuń zadanie"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

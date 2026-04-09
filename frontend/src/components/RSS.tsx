@@ -91,7 +91,7 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
   return (
     <Card icon="📡" title={widgetName} onSettings={() => setShowSettings(true)}>
       {loading ? (
-        <Loading text="Ladowanie RSS..." />
+        <Loading text="Ładowanie RSS..." />
       ) : feeds.length === 0 ? (
         <div className="text-sm text-muted-foreground py-4 text-center">
           Brak kanalow RSS. Kliknij <button onClick={() => setShowSettings(true)} className="text-primary underline">⚙ ustawienia</button> zeby dodac.
@@ -115,9 +115,9 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
       )}
 
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} title={`Kanaly RSS — ${widgetName}`}>
-        <div className="text-xs font-medium text-muted-foreground mb-2">Twoje kanaly ({feeds.length}/5)</div>
+        <div className="text-xs font-medium text-muted-foreground mb-2">Twoje kanały ({feeds.length}/5)</div>
         {feeds.length === 0 ? (
-          <p className="text-sm text-muted-foreground mb-4">Brak — dodaj kanaly ponizej</p>
+          <p className="text-sm text-muted-foreground mb-4">Brak — dodaj kanały poniżej</p>
         ) : (
           <div className="mb-4 space-y-1">
             {feeds.map(f => (
