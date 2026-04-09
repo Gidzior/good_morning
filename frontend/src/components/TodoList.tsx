@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Card from './DashboardCard';
 import Loading from './Loading';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface GoogleTask {
@@ -19,12 +20,22 @@ interface TodoListProps {
   tick: number;
 }
 
+/** Sort: needsAction first, completed second, preserve position order within each group */
+function sortTasks(tasks: GoogleTask[]): GoogleTask[] {
+  const active = tasks.filter(t => t.status === 'needsAction');
+  const done = tasks.filter(t => t.status === 'completed');
+  return [...active, ...done];
+}
+
 export default function TodoList({ listId, listName, tick }: TodoListProps) {
   const [tasks, setTasks] = useState<GoogleTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [newTitle, setNewTitle] = useState('');
   const [adding, setAdding] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const addBtnRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
   const dragIdx = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragGhost = useRef<HTMLDivElement | null>(null);
@@ -42,7 +53,7 @@ export default function TodoList({ listId, listName, tick }: TodoListProps) {
         setLoading(false);
         return;
       }
-      setTasks(data.items ?? []);
+      setTasks(sortTasks(data.items ?? []));
       setErrorMsg('');
     } catch (err) {
       console.error('Failed to load tasks:', err);
@@ -52,6 +63,21 @@ export default function TodoList({ listId, listName, tick }: TodoListProps) {
   }, [apiBase]);
 
   useEffect(() => { loadTasks(); }, [loadTasks, tick]);
+
+  // Close popover on outside click
+  useEffect(() => {
+    if (!showAdd) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
+        addBtnRef.current && !addBtnRef.current.contains(e.target as Node)
+      ) {
+        setShowAdd(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showAdd]);
 
   const addTask = async () => {
     const title = newTitle.trim();
@@ -65,6 +91,7 @@ export default function TodoList({ listId, listName, tick }: TodoListProps) {
       });
       if (!r.ok) { console.error('Failed to add task:', r.status); return; }
       setNewTitle('');
+      setShowAdd(false);
       await loadTasks();
     } catch (err) {
       console.error('Failed to add task:', err);
@@ -75,9 +102,10 @@ export default function TodoList({ listId, listName, tick }: TodoListProps) {
 
   const toggleTask = async (taskId: string, currentStatus: string) => {
     const newStatus = currentStatus === 'completed' ? 'needsAction' : 'completed';
-    setTasks(prev => prev.map(t =>
+    // Optimistic update with re-sort
+    setTasks(prev => sortTasks(prev.map(t =>
       t.id === taskId ? { ...t, status: newStatus as GoogleTask['status'] } : t,
-    ));
+    )));
     try {
       const r = await fetch(`${apiBase}/${encodeURIComponent(taskId)}`, {
         method: 'PATCH',
@@ -124,7 +152,6 @@ export default function TodoList({ listId, listName, tick }: TodoListProps) {
         body: JSON.stringify({ previousTaskId }),
       });
       if (!r.ok) { console.error('Failed to move task:', r.status); }
-      // Always reload to confirm server-side order
       await loadTasks();
     } catch (err) {
       console.error('Failed to move task:', err);
@@ -132,31 +159,40 @@ export default function TodoList({ listId, listName, tick }: TodoListProps) {
     }
   };
 
+  // Popover position
+  const getPopoverStyle = (): React.CSSProperties => {
+    if (!addBtnRef.current) return { position: 'fixed', top: 0, left: 0 };
+    const rect = addBtnRef.current.getBoundingClientRect();
+    return {
+      position: 'fixed',
+      top: rect.bottom + 6,
+      right: window.innerWidth - rect.right,
+      zIndex: 50,
+    };
+  };
+
+  const addButton = (
+    <button
+      ref={addBtnRef}
+      onClick={() => setShowAdd(prev => !prev)}
+      className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      title="Dodaj zadanie"
+    >
+      <Plus className="size-4" />
+    </button>
+  );
+
   return (
-    <Card icon="✅" title={listName}>
+    <Card icon="✅" title={listName} action={addButton}>
       {errorMsg ? (
         <div className="text-sm text-muted-foreground py-4 text-center">{errorMsg}</div>
       ) : loading ? (
         <Loading text="Ładowanie zadań..." />
       ) : (
         <div className="flex flex-col flex-1 min-h-0">
-          <div className="flex gap-2 mb-3">
-            <Input
-              value={newTitle}
-              onChange={e => setNewTitle(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') addTask(); }}
-              placeholder="Nowe zadanie..."
-              disabled={adding}
-              className="text-sm"
-            />
-            <Button size="sm" onClick={addTask} disabled={!newTitle.trim() || adding}>
-              {adding ? '...' : 'Dodaj'}
-            </Button>
-          </div>
-
           {tasks.length === 0 ? (
             <div className="text-sm text-muted-foreground py-2 text-center">
-              Brak zadań — dodaj pierwsze powyżej
+              Brak zadań — kliknij <button onClick={() => setShowAdd(true)} className="text-primary underline">+</button> aby dodać
             </div>
           ) : (
             <div className="space-y-1 min-h-0 flex-1 overflow-y-auto">
@@ -168,7 +204,6 @@ export default function TodoList({ listId, listName, tick }: TodoListProps) {
                     e.stopPropagation();
                     dragIdx.current = idx;
                     e.dataTransfer.effectAllowed = 'move';
-                    // Clone row as off-screen ghost so browser doesn't screenshot the whole widget
                     const el = e.currentTarget;
                     const clone = el.cloneNode(true) as HTMLDivElement;
                     clone.style.position = 'fixed';
@@ -226,6 +261,27 @@ export default function TodoList({ listId, listName, tick }: TodoListProps) {
             </div>
           )}
         </div>
+      )}
+
+      {showAdd && createPortal(
+        <div ref={popoverRef} style={getPopoverStyle()} className="w-72 rounded-lg border bg-card p-3 shadow-lg">
+          <div className="text-xs font-medium text-muted-foreground mb-2">Nowe zadanie</div>
+          <div className="flex gap-2">
+            <Input
+              value={newTitle}
+              onChange={e => setNewTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addTask(); }}
+              placeholder="Nazwa zadania..."
+              disabled={adding}
+              className="text-sm"
+              autoFocus
+            />
+            <Button size="sm" onClick={addTask} disabled={!newTitle.trim() || adding}>
+              {adding ? '...' : 'Dodaj'}
+            </Button>
+          </div>
+        </div>,
+        document.body,
       )}
     </Card>
   );
