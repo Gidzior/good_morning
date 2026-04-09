@@ -112,7 +112,9 @@ export default function TodoList({ listId, listName, tick }: TodoListProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (!r.ok) { console.error('Failed to toggle task:', r.status); await loadTasks(); }
+      if (!r.ok) { console.error('Failed to toggle task:', r.status); }
+      // Always reload to get correct position-based order
+      await loadTasks();
     } catch (err) {
       console.error('Failed to toggle task:', err);
       await loadTasks();
