@@ -8,7 +8,7 @@ import fetch, { Response } from 'node-fetch';
 import RSSParser from 'rss-parser';
 import { google } from 'googleapis';
 import authRouter, { requireAuth, getOAuth2ClientForUser } from './auth';
-import { getCalendarPrefs, saveCalendarPrefs, getLayout, saveLayout, getUserStocks, addUserStock, deleteUserStock, getUserCryptos, addUserCrypto, deleteUserCrypto, getUserCurrencies, addUserCurrency, deleteUserCurrency, getRssWidgets, createRssWidget, updateRssWidget, deleteRssWidget, addRssFeed, deleteRssFeed, getUserCities, addUserCity, deleteUserCity, getWidgetPrefs, setWidgetEnabled, clearWidgetData } from './db';
+import { getCalendarPrefs, saveCalendarPrefs, getLayout, saveLayout, getUserStocks, addUserStock, deleteUserStock, getUserCryptos, addUserCrypto, deleteUserCrypto, getUserCurrencies, addUserCurrency, deleteUserCurrency, getRssWidgets, createRssWidget, updateRssWidget, deleteRssWidget, addRssFeed, deleteRssFeed, getUserCities, addUserCity, deleteUserCity, getWidgetPrefs, setWidgetEnabled, clearWidgetData, getTodoLists, createTodoList, updateTodoList, deleteTodoList } from './db';
 
 /** Extract authenticated user ID — safe after requireAuth middleware */
 function userId(req: Request): string {
@@ -663,6 +663,181 @@ app.get('/api/calendar', async (req, res) => {
     console.error('Calendar API error:', e);
     const msg = errMsg(e);
     res.json({ error: `Blad kalendarza: ${msg}` });
+  }
+});
+
+// --- API: Todo Lists CRUD ---
+app.get('/api/todo-lists', (req, res) => {
+  res.json(getTodoLists(userId(req)));
+});
+
+app.post('/api/todo-lists', async (req, res) => {
+  const { name } = req.body as { name: string };
+  if (!name?.trim()) return res.status(400).json({ error: 'name required' });
+
+  // Try to create a Google Task List, fall back to null if not connected
+  let googleTasklistId: string | null = null;
+  const oauth2Client = getOAuth2ClientForUser(userId(req));
+  if (oauth2Client) {
+    try {
+      const tasksApi = google.tasks({ version: 'v1', auth: oauth2Client });
+      const response = await tasksApi.tasklists.insert({ requestBody: { title: name.trim() } });
+      googleTasklistId = response.data.id || null;
+    } catch (e) {
+      console.error('Failed to create Google Task List:', errMsg(e));
+    }
+  }
+
+  const list = createTodoList(userId(req), name.trim(), googleTasklistId);
+  res.json(list);
+});
+
+app.put('/api/todo-lists/:id', (req, res) => {
+  const { name } = req.body as { name: string };
+  if (!name?.trim()) return res.status(400).json({ error: 'name required' });
+  updateTodoList(userId(req), req.params.id, name.trim());
+  res.json({ ok: true });
+});
+
+app.delete('/api/todo-lists/:id', async (req, res) => {
+  const lists = getTodoLists(userId(req));
+  const list = lists.find(l => l.id === req.params.id);
+  if (list?.google_tasklist_id) {
+    const oauth2Client = getOAuth2ClientForUser(userId(req));
+    if (oauth2Client) {
+      try {
+        const tasksApi = google.tasks({ version: 'v1', auth: oauth2Client });
+        await tasksApi.tasklists.delete({ tasklist: list.google_tasklist_id });
+      } catch (e) {
+        console.error('Failed to delete Google Task List:', errMsg(e));
+      }
+    }
+  }
+  deleteTodoList(userId(req), req.params.id);
+  res.json({ ok: true });
+});
+
+// --- API: Tasks within a todo list ---
+app.get('/api/todo-lists/:id/tasks', async (req, res) => {
+  const lists = getTodoLists(userId(req));
+  const list = lists.find(l => l.id === req.params.id);
+  if (!list) return res.status(404).json({ error: 'List not found' });
+  if (!list.google_tasklist_id) return res.json({ items: [], error: 'Brak polaczenia z Google Tasks' });
+
+  const oauth2Client = getOAuth2ClientForUser(userId(req));
+  if (!oauth2Client) return res.json({ items: [], error: 'Polacz konto Google w ustawieniach.' });
+
+  try {
+    const tasksApi = google.tasks({ version: 'v1', auth: oauth2Client });
+    const response = await tasksApi.tasks.list({
+      tasklist: list.google_tasklist_id,
+      maxResults: 100,
+      showCompleted: true,
+      showHidden: false,
+    });
+    const items = response.data.items || [];
+    items.sort((a, b) => (a.position || '').localeCompare(b.position || ''));
+    res.json({ items });
+  } catch (e: unknown) {
+    const msg = errMsg(e);
+    console.error('Tasks API error:', msg);
+    if (msg.includes('insufficient authentication scopes') || msg.includes('has not been used in project')) {
+      return res.json({ items: [], error: 'Wlacz Google Tasks API i zaloguj sie ponownie.' });
+    }
+    res.status(500).json({ error: msg });
+  }
+});
+
+app.post('/api/todo-lists/:id/tasks', async (req, res) => {
+  const { title } = req.body as { title: string };
+  if (!title?.trim()) return res.status(400).json({ error: 'title required' });
+  const lists = getTodoLists(userId(req));
+  const list = lists.find(l => l.id === req.params.id);
+  if (!list?.google_tasklist_id) return res.status(400).json({ error: 'List not linked to Google Tasks' });
+
+  const oauth2Client = getOAuth2ClientForUser(userId(req));
+  if (!oauth2Client) return res.status(401).json({ error: 'Google not connected' });
+
+  try {
+    const tasksApi = google.tasks({ version: 'v1', auth: oauth2Client });
+    const response = await tasksApi.tasks.insert({
+      tasklist: list.google_tasklist_id,
+      requestBody: { title: title.trim(), status: 'needsAction' },
+    });
+    res.json(response.data);
+  } catch (e: unknown) {
+    console.error('Tasks create error:', errMsg(e));
+    res.status(500).json({ error: errMsg(e) });
+  }
+});
+
+app.patch('/api/todo-lists/:id/tasks/:taskId', async (req, res) => {
+  const { status } = req.body as { status: 'needsAction' | 'completed' };
+  if (!status || !['needsAction', 'completed'].includes(status)) {
+    return res.status(400).json({ error: 'status must be needsAction or completed' });
+  }
+  const lists = getTodoLists(userId(req));
+  const list = lists.find(l => l.id === req.params.id);
+  if (!list?.google_tasklist_id) return res.status(400).json({ error: 'List not linked' });
+
+  const oauth2Client = getOAuth2ClientForUser(userId(req));
+  if (!oauth2Client) return res.status(401).json({ error: 'Google not connected' });
+
+  try {
+    const tasksApi = google.tasks({ version: 'v1', auth: oauth2Client });
+    const response = await tasksApi.tasks.patch({
+      tasklist: list.google_tasklist_id,
+      task: req.params.taskId,
+      requestBody: {
+        status,
+        completed: status === 'completed' ? new Date().toISOString() : null,
+      },
+    });
+    res.json(response.data);
+  } catch (e: unknown) {
+    console.error('Tasks update error:', errMsg(e));
+    res.status(500).json({ error: errMsg(e) });
+  }
+});
+
+app.post('/api/todo-lists/:id/tasks/:taskId/move', async (req, res) => {
+  const { previousTaskId } = req.body as { previousTaskId: string | null };
+  const lists = getTodoLists(userId(req));
+  const list = lists.find(l => l.id === req.params.id);
+  if (!list?.google_tasklist_id) return res.status(400).json({ error: 'List not linked' });
+
+  const oauth2Client = getOAuth2ClientForUser(userId(req));
+  if (!oauth2Client) return res.status(401).json({ error: 'Google not connected' });
+
+  try {
+    const tasksApi = google.tasks({ version: 'v1', auth: oauth2Client });
+    const response = await tasksApi.tasks.move({
+      tasklist: list.google_tasklist_id,
+      task: req.params.taskId,
+      previous: previousTaskId || undefined,
+    });
+    res.json(response.data);
+  } catch (e: unknown) {
+    console.error('Tasks move error:', errMsg(e));
+    res.status(500).json({ error: errMsg(e) });
+  }
+});
+
+app.delete('/api/todo-lists/:id/tasks/:taskId', async (req, res) => {
+  const lists = getTodoLists(userId(req));
+  const list = lists.find(l => l.id === req.params.id);
+  if (!list?.google_tasklist_id) return res.status(400).json({ error: 'List not linked' });
+
+  const oauth2Client = getOAuth2ClientForUser(userId(req));
+  if (!oauth2Client) return res.status(401).json({ error: 'Google not connected' });
+
+  try {
+    const tasksApi = google.tasks({ version: 'v1', auth: oauth2Client });
+    await tasksApi.tasks.delete({ tasklist: list.google_tasklist_id, task: req.params.taskId });
+    res.json({ ok: true });
+  } catch (e: unknown) {
+    console.error('Tasks delete error:', errMsg(e));
+    res.status(500).json({ error: errMsg(e) });
   }
 });
 

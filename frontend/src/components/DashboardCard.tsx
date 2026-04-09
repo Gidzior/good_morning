@@ -28,7 +28,7 @@ export default function DashboardCard({ icon, title, action, onSettings, childre
         )}
         {action && <div className="ml-auto shrink-0">{action}</div>}
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className="flex-1 min-h-0 flex flex-col">{children}</CardContent>
     </Card>
   );
 }

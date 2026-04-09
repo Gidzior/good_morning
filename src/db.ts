@@ -116,6 +116,15 @@ db.exec(`
     sort_order INTEGER NOT NULL DEFAULT 0
   );
 
+  CREATE TABLE IF NOT EXISTS user_todo_lists (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    google_tasklist_id TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS user_widget_prefs (
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     widget_id TEXT NOT NULL,
@@ -128,6 +137,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
   CREATE INDEX IF NOT EXISTS idx_rss_widgets_user ON user_rss_widgets(user_id);
   CREATE INDEX IF NOT EXISTS idx_rss_feeds_widget ON user_rss_feeds(widget_id);
+  CREATE INDEX IF NOT EXISTS idx_todo_lists_user ON user_todo_lists(user_id);
 `);
 
 // --- Prepared statements ---
@@ -233,6 +243,14 @@ const stmts = {
   `),
   deleteRssFeed: db.prepare(`DELETE FROM user_rss_feeds WHERE id = ? AND widget_id = ?`),
   countRssFeeds: db.prepare(`SELECT COUNT(*) as cnt FROM user_rss_feeds WHERE widget_id = ?`),
+
+  getTodoLists: db.prepare(`SELECT id, name, google_tasklist_id FROM user_todo_lists WHERE user_id = ? ORDER BY sort_order`),
+  createTodoList: db.prepare(`
+    INSERT INTO user_todo_lists (id, user_id, name, google_tasklist_id, sort_order)
+    VALUES (@id, @user_id, @name, @google_tasklist_id, (SELECT COALESCE(MAX(sort_order),0)+1 FROM user_todo_lists WHERE user_id = @user_id))
+  `),
+  updateTodoList: db.prepare(`UPDATE user_todo_lists SET name = ? WHERE id = ? AND user_id = ?`),
+  deleteTodoList: db.prepare(`DELETE FROM user_todo_lists WHERE id = ? AND user_id = ?`),
 
   getWidgetPrefs: db.prepare(`SELECT widget_id, enabled, saved_layout FROM user_widget_prefs WHERE user_id = ?`),
   upsertWidgetPref: db.prepare(`
@@ -459,6 +477,27 @@ export function deleteRssFeed(userId: string, widgetId: string, feedId: string):
   stmts.deleteRssFeed.run(feedId, widgetId);
 }
 
+// --- Todo Lists ---
+export interface TodoList { id: string; name: string; google_tasklist_id: string | null; }
+
+export function getTodoLists(userId: string): TodoList[] {
+  return stmts.getTodoLists.all(userId) as TodoList[];
+}
+
+export function createTodoList(userId: string, name: string, googleTasklistId: string | null): TodoList {
+  const id = uuidv4();
+  stmts.createTodoList.run({ id, user_id: userId, name, google_tasklist_id: googleTasklistId });
+  return { id, name, google_tasklist_id: googleTasklistId };
+}
+
+export function updateTodoList(userId: string, listId: string, name: string): void {
+  stmts.updateTodoList.run(name, listId, userId);
+}
+
+export function deleteTodoList(userId: string, listId: string): void {
+  stmts.deleteTodoList.run(listId, userId);
+}
+
 // --- Widget Preferences ---
 interface WidgetPrefRow { widget_id: string; enabled: number; saved_layout: string | null; }
 
@@ -515,6 +554,11 @@ export function clearWidgetData(userId: string, widgetId: string): void {
       if (widgetId.startsWith('rss-')) {
         const rssId = widgetId.slice(4);
         stmts.deleteRssWidget.run(rssId, userId);
+      }
+      // Todo widget: delete the list
+      if (widgetId.startsWith('todo-')) {
+        const todoId = widgetId.slice(5);
+        stmts.deleteTodoList.run(todoId, userId);
       }
       break;
   }

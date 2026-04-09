@@ -28,12 +28,13 @@ import {
   PlusIcon,
   EyeIcon,
   EyeOffIcon,
+  CheckSquareIcon,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import DisableWidgetDialog from './DisableWidgetDialog';
 
-interface RssWidgetInfo {
+interface DynamicWidgetInfo {
   id: string;
   name: string;
 }
@@ -47,7 +48,9 @@ interface AppSidebarProps {
   onToggleEdit?: () => void;
   onResetLayout?: () => void;
   onAddRss?: () => void;
-  rssWidgets?: RssWidgetInfo[];
+  onAddTodo?: () => void;
+  rssWidgets?: DynamicWidgetInfo[];
+  todoWidgets?: DynamicWidgetInfo[];
   isWidgetEnabled?: (id: string) => boolean;
   onEnableWidget?: (id: string) => void;
   onDisableWidget?: (id: string, deleteData: boolean) => void;
@@ -77,7 +80,9 @@ export default function AppSidebar({
   onToggleEdit,
   onResetLayout,
   onAddRss,
+  onAddTodo,
   rssWidgets = [],
+  todoWidgets = [],
   isWidgetEnabled,
   onEnableWidget,
   onDisableWidget,
@@ -99,6 +104,11 @@ export default function AppSidebar({
 
   const allWidgets: WidgetMeta[] = [
     ...STATIC_WIDGETS,
+    ...todoWidgets.map(tw => ({
+      id: `todo-${tw.id}`,
+      icon: CheckSquareIcon,
+      label: tw.name,
+    })),
     ...rssWidgets.map(rw => ({
       id: `rss-${rw.id}`,
       icon: RssIcon,
@@ -153,6 +163,14 @@ export default function AppSidebar({
                     </SidebarMenuItem>
                   );
                 })}
+                {onAddTodo && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton tooltip="Dodaj liste zadan" onClick={onAddTodo}>
+                      <PlusIcon className="h-4 w-4" />
+                      <span>Dodaj liste zadan</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
                 {onAddRss && (
                   <SidebarMenuItem>
                     <SidebarMenuButton tooltip="Dodaj widget RSS" onClick={onAddRss}>

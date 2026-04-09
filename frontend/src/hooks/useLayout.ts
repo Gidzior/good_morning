@@ -10,11 +10,11 @@ const STATIC_LAYOUT: LayoutItem[] = [
   { i: 'stocks',     x: 2, y: 4, w: 1, h: 3, minW: 1, maxW: 3, minH: 2 },
 ];
 
-function buildDefaultLayout(rssWidgetIds: string[]): LayoutItem[] {
-  const rssItems: LayoutItem[] = rssWidgetIds.map((id, idx) => ({
-    i: id, x: idx % 3, y: 8 + Math.floor(idx / 3) * 4, w: 1, h: 4, minW: 1, maxW: 3, minH: 3,
+function buildDefaultLayout(dynamicWidgetIds: string[]): LayoutItem[] {
+  const dynamicItems: LayoutItem[] = dynamicWidgetIds.map((id, idx) => ({
+    i: id, x: idx % 3, y: 7 + Math.floor(idx / 3) * 4, w: 1, h: 4, minW: 1, maxW: 3, minH: 3,
   }));
-  return [...STATIC_LAYOUT, ...rssItems];
+  return [...STATIC_LAYOUT, ...dynamicItems];
 }
 
 function deriveBreakpointDefaults(lg: LayoutItem[]): BreakpointLayouts {
@@ -43,8 +43,8 @@ function isSavedLayouts(data: unknown): data is SavedLayouts {
   return typeof data === 'object' && data !== null && !Array.isArray(data) && 'lg' in data;
 }
 
-export function useLayout(rssWidgetIds: string[] = []) {
-  const defaultLayout = buildDefaultLayout(rssWidgetIds);
+export function useLayout(dynamicWidgetIds: string[] = []) {
+  const defaultLayout = buildDefaultLayout(dynamicWidgetIds);
   const defaultLayouts = deriveBreakpointDefaults(defaultLayout);
   const [layouts, setLayouts] = useState<BreakpointLayouts>(defaultLayouts);
   const [loaded, setLoaded] = useState(false);
@@ -52,7 +52,7 @@ export function useLayout(rssWidgetIds: string[] = []) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const def = buildDefaultLayout(rssWidgetIds);
+    const def = buildDefaultLayout(dynamicWidgetIds);
     const defBp = deriveBreakpointDefaults(def);
     fetch('/api/layout')
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
@@ -81,7 +81,7 @@ export function useLayout(rssWidgetIds: string[] = []) {
         setLoaded(true);
       })
       .catch((err) => { console.error('Failed to load layout:', err); setLayouts(defBp); setLoaded(true); });
-  }, [rssWidgetIds.join(',')]);
+  }, [dynamicWidgetIds.join(',')]);
 
   const saveLayouts = useCallback((newLayouts: BreakpointLayouts) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -103,11 +103,11 @@ export function useLayout(rssWidgetIds: string[] = []) {
   }, [saveLayouts]);
 
   const resetLayout = useCallback(() => {
-    const def = buildDefaultLayout(rssWidgetIds);
+    const def = buildDefaultLayout(dynamicWidgetIds);
     const defBp = deriveBreakpointDefaults(def);
     setLayouts(defBp);
     saveLayouts(defBp);
-  }, [saveLayouts, rssWidgetIds]);
+  }, [saveLayouts, dynamicWidgetIds]);
 
   /** Merge saved per-breakpoint layout for a widget back into layouts */
   const restoreWidgetLayout = useCallback((saved: BreakpointLayouts) => {

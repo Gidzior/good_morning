@@ -22,6 +22,7 @@ import Stocks from './components/Stocks';
 import RSS from './components/RSS';
 import type { RssFeedConfig } from './components/RSS';
 import Quote from './components/Quote';
+import TodoList from './components/TodoList';
 import type { WidgetId } from './types';
 import './App.css';
 
@@ -29,6 +30,12 @@ interface RssWidgetData {
   id: string;
   name: string;
   feeds: RssFeedConfig[];
+}
+
+interface TodoListData {
+  id: string;
+  name: string;
+  google_tasklist_id: string | null;
 }
 
 type Page = 'dashboard' | 'account';
@@ -39,6 +46,8 @@ function Dashboard() {
   const [page, setPage] = useState<Page>('dashboard');
   const [rssWidgets, setRssWidgets] = useState<RssWidgetData[]>([]);
   const [rssLoaded, setRssLoaded] = useState(false);
+  const [todoLists, setTodoLists] = useState<TodoListData[]>([]);
+  const [todoLoaded, setTodoLoaded] = useState(false);
   const { loaded: prefsLoaded, isEnabled, enableWidget, disableWidget } = useWidgetPrefs();
 
   const loadRssWidgets = useCallback(() => {
@@ -48,10 +57,20 @@ function Dashboard() {
       .catch((err) => { console.error('Failed to load RSS widgets:', err); setRssLoaded(true); });
   }, []);
 
+  const loadTodoLists = useCallback(() => {
+    fetch('/api/todo-lists')
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then((data: TodoListData[]) => { setTodoLists(data); setTodoLoaded(true); })
+      .catch((err) => { console.error('Failed to load todo lists:', err); setTodoLoaded(true); });
+  }, []);
+
   useEffect(() => { loadRssWidgets(); }, [loadRssWidgets]);
+  useEffect(() => { loadTodoLists(); }, [loadTodoLists]);
 
   const rssWidgetIds = useMemo(() => rssWidgets.map(w => `rss-${w.id}` as const), [rssWidgets]);
-  const { layouts, loaded, editMode, setEditMode, onLayoutChange, resetLayout, restoreWidgetLayout, getWidgetLayout } = useLayout(rssWidgetIds);
+  const todoWidgetIds = useMemo(() => todoLists.map(t => `todo-${t.id}` as const), [todoLists]);
+  const dynamicWidgetIds = useMemo(() => [...todoWidgetIds, ...rssWidgetIds], [todoWidgetIds, rssWidgetIds]);
+  const { layouts, loaded, editMode, setEditMode, onLayoutChange, resetLayout, restoreWidgetLayout, getWidgetLayout } = useLayout(dynamicWidgetIds);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -60,6 +79,8 @@ function Dashboard() {
 
   const [rssDialogOpen, setRssDialogOpen] = useState(false);
   const [rssName, setRssName] = useState('');
+  const [todoDialogOpen, setTodoDialogOpen] = useState(false);
+  const [todoName, setTodoName] = useState('');
 
   const addRssWidget = useCallback(async (name: string) => {
     if (!name.trim()) return;
@@ -72,15 +93,29 @@ function Dashboard() {
     loadRssWidgets();
   }, [loadRssWidgets]);
 
+  const addTodoList = useCallback(async (name: string) => {
+    if (!name.trim()) return;
+    const r = await fetch('/api/todo-lists', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim() }),
+    });
+    if (!r.ok) { console.error('Failed to add todo list:', r.status); return; }
+    loadTodoLists();
+  }, [loadTodoLists]);
+
   const handleDisableWidget = useCallback(async (widgetId: string, deleteData: boolean) => {
     // Save widget's current layout before disabling
     const widgetLayout = getWidgetLayout(widgetId);
     await disableWidget(widgetId, { deleteData, savedLayout: widgetLayout });
-    // If RSS widget was hard-deleted, reload the list
+    // If dynamic widget was hard-deleted, reload the list
     if (deleteData && widgetId.startsWith('rss-')) {
       loadRssWidgets();
     }
-  }, [disableWidget, loadRssWidgets, getWidgetLayout]);
+    if (deleteData && widgetId.startsWith('todo-')) {
+      loadTodoLists();
+    }
+  }, [disableWidget, loadRssWidgets, loadTodoLists, getWidgetLayout]);
 
   const handleEnableWidget = useCallback(async (widgetId: string) => {
     const savedLayout = await enableWidget(widgetId);
@@ -99,12 +134,16 @@ function Dashboard() {
       { id: 'currencies' as WidgetId, node: <Currencies tick={tick} /> },
       { id: 'stocks' as WidgetId, node: <Stocks tick={tick} /> },
     ];
+    const todoEntries = todoLists.map(t => ({
+      id: `todo-${t.id}` as WidgetId,
+      node: <TodoList key={t.id} listId={t.id} listName={t.name} tick={tick} />,
+    }));
     const rssEntries = rssWidgets.map(w => ({
       id: `rss-${w.id}` as WidgetId,
       node: <RSS key={w.id} widgetId={w.id} widgetName={w.name} feeds={w.feeds} tick={tick} onFeedsChanged={loadRssWidgets} />,
     }));
-    return [...staticWidgets, ...rssEntries];
-  }, [tick, rssWidgets, loadRssWidgets]);
+    return [...staticWidgets, ...todoEntries, ...rssEntries];
+  }, [tick, todoLists, rssWidgets, loadRssWidgets]);
 
   // Filter to only enabled widgets
   const visibleWidgets = useMemo(
@@ -135,7 +174,9 @@ function Dashboard() {
           onToggleEdit={() => setEditMode(!editMode)}
           onResetLayout={resetLayout}
           onAddRss={() => { setRssName(''); setRssDialogOpen(true); }}
+          onAddTodo={() => { setTodoName(''); setTodoDialogOpen(true); }}
           rssWidgets={rssWidgets.map(w => ({ id: w.id, name: w.name }))}
+          todoWidgets={todoLists.map(t => ({ id: t.id, name: t.name }))}
           isWidgetEnabled={isEnabled}
           onEnableWidget={handleEnableWidget}
           onDisableWidget={handleDisableWidget}
@@ -143,7 +184,7 @@ function Dashboard() {
         <SidebarInset>
           <DashboardHeader now={now} />
           <div className="p-6 max-sm:p-4">
-            {loaded && rssLoaded && prefsLoaded ? (
+            {loaded && rssLoaded && todoLoaded && prefsLoaded ? (
               <DashboardGrid
                 widgets={visibleWidgets}
                 layouts={layouts}
@@ -177,6 +218,34 @@ function Dashboard() {
               <Button
                 disabled={!rssName.trim()}
                 onClick={() => { addRssWidget(rssName); setRssDialogOpen(false); }}
+              >
+                Dodaj
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={todoDialogOpen} onOpenChange={setTodoDialogOpen}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Nowa lista zadan</DialogTitle>
+            </DialogHeader>
+            <Input
+              placeholder="Nazwa listy"
+              value={todoName}
+              onChange={(e) => setTodoName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && todoName.trim()) {
+                  addTodoList(todoName);
+                  setTodoDialogOpen(false);
+                }
+              }}
+              autoFocus
+            />
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setTodoDialogOpen(false)}>Anuluj</Button>
+              <Button
+                disabled={!todoName.trim()}
+                onClick={() => { addTodoList(todoName); setTodoDialogOpen(false); }}
               >
                 Dodaj
               </Button>

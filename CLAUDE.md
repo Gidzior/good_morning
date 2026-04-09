@@ -72,7 +72,7 @@ Przed commitem: `lint && build` musza przejsc.
 - Google Keep: brak publicznego API (tylko Workspace Enterprise) — odrzucone
 
 ## Auth & Database
-- Google OAuth2 (scopes: openid, email, profile, calendar.readonly)
+- Google OAuth2 (scopes: openid, email, profile, calendar.readonly, tasks)
 - Session-based auth: httpOnly cookies, 30-day TTL, `requireAuth` middleware on all /api
 - SQLite tables: users, sessions, user_tokens, user_calendar_prefs, user_layouts
 - Per-user Google Calendar tokens with auto-refresh in `getOAuth2ClientForUser()`
@@ -91,7 +91,7 @@ Przed commitem: `lint && build` musza przejsc.
 - Button has NO `asChild` prop — use `buttonVariants()` + plain `<a>` instead
 - Components use `data-slot` attributes (e.g. `data-slot="card"`, `data-slot="card-content"`)
 
-## Features (as of 2026-04-06)
+## Features (as of 2026-04-09)
 - Weather (OpenWeatherMap) — current + hourly forecast + 3-day, city selector
 - Quote of the day (Polish)
 - Google Calendar — multi-calendar, colored event borders, per-user OAuth
@@ -101,6 +101,7 @@ Przed commitem: `lint && build` musza przejsc.
 - Nameday in dashboard header (local DB)
 - Drag-and-drop grid with per-user layout persistence
 - Edit mode toggle + reset in sidebar
+- Google Tasks — todo list widget (add, toggle, delete tasks via Google Tasks API)
 - Full-height card stretching in grid cells
 
 ## Git
