@@ -114,7 +114,7 @@ export default function AccountPage({ onBack, lastUpdate, countdown, onRefresh }
         <SidebarInset>
           <header className="flex items-center gap-3 border-b border-border bg-card px-4 py-3">
             <SidebarTrigger />
-            <Separator orientation="vertical" className="h-5" />
+            <Separator orientation="vertical" />
             <Button variant="ghost" size="sm" className="gap-2" onClick={onBack}>
               <ArrowLeftIcon className="h-4 w-4" />
               Powrot

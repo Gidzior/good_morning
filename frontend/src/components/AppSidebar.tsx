@@ -12,7 +12,6 @@ import {
   SidebarFooter,
   SidebarSeparator,
 } from '@/components/ui/sidebar';
-import { Button } from '@/components/ui/button';
 import {
   CloudSunIcon,
   CalendarIcon,
@@ -119,9 +118,9 @@ export default function AppSidebar({
   return (
     <>
       <Sidebar variant="inset" collapsible="icon">
-        <SidebarHeader className="p-4 group-data-[collapsible=icon]:px-1.5 group-data-[collapsible=icon]:py-3">
+        <SidebarHeader className="p-4 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:py-2 group-data-[collapsible=icon]:min-h-[69px]">
           <div className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-lg text-primary-foreground group-data-[collapsible=icon]:h-7 group-data-[collapsible=icon]:w-7 group-data-[collapsible=icon]:rounded-md group-data-[collapsible=icon]:text-sm">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-lg text-primary-foreground">
               ☀
             </div>
             <div className="flex flex-col group-data-[collapsible=icon]:hidden">
@@ -137,7 +136,7 @@ export default function AppSidebar({
           <SidebarGroup>
             <SidebarGroupLabel>Widgety</SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu>
+              <SidebarMenu className="group-data-[collapsible=icon]:items-center">
                 {allWidgets.map((widget) => {
                   const enabled = isWidgetEnabled ? isWidgetEnabled(widget.id) : true;
                   return (
@@ -145,21 +144,16 @@ export default function AppSidebar({
                       <SidebarMenuButton
                         tooltip={widget.label}
                         className={enabled ? '' : 'opacity-50'}
+                        onClick={() => handleToggle(widget.id, widget.label)}
                       >
                         <widget.icon className="h-4 w-4" />
                         <span className="flex-1">{widget.label}</span>
+                        {isWidgetEnabled && (
+                          <span className="ml-auto text-muted-foreground group-data-[collapsible=icon]:hidden">
+                            {enabled ? <EyeIcon className="size-3" /> : <EyeOffIcon className="size-3" />}
+                          </span>
+                        )}
                       </SidebarMenuButton>
-                      {isWidgetEnabled && (
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground group-data-[collapsible=icon]:hidden"
-                          onClick={(e) => { e.stopPropagation(); handleToggle(widget.id, widget.label); }}
-                          title={enabled ? 'Wyłącz widget' : 'Włącz widget'}
-                        >
-                          {enabled ? <EyeIcon className="size-3" /> : <EyeOffIcon className="size-3" />}
-                        </Button>
-                      )}
                     </SidebarMenuItem>
                   );
                 })}
@@ -186,7 +180,7 @@ export default function AppSidebar({
 
         <SidebarSeparator />
 
-        <SidebarFooter className="p-3">
+        <SidebarFooter className="p-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5 group-data-[collapsible=icon]:py-3">
           {/* User info */}
           {user && (
             <div className="mb-2 group-data-[collapsible=icon]:mb-0">
@@ -208,60 +202,50 @@ export default function AppSidebar({
                   <span className="truncate text-[10px] text-muted-foreground">{user.email}</span>
                 </div>
               </div>
-              <div className="mt-1.5 flex gap-1 group-data-[collapsible=icon]:mt-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
+              <SidebarMenu className="mt-1.5 group-data-[collapsible=icon]:mt-1">
                 {onAccount && (
-                  <button
-                    onClick={onAccount}
-                    className="flex h-7 flex-1 items-center justify-center gap-1 rounded-md text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8"
-                    title="Konto"
-                  >
-                    <UserIcon className="h-3.5 w-3.5" />
-                    <span className="group-data-[collapsible=icon]:hidden">Konto</span>
-                  </button>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton tooltip="Konto" onClick={onAccount}>
+                      <UserIcon className="h-4 w-4" />
+                      <span>Konto</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 )}
-                <button
-                  onClick={logout}
-                  className="flex h-7 flex-1 items-center justify-center gap-1 rounded-md text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8"
-                  title="Wyloguj"
-                >
-                  <LogOutIcon className="h-3.5 w-3.5" />
-                  <span className="group-data-[collapsible=icon]:hidden">Wyloguj</span>
-                </button>
-              </div>
+                <SidebarMenuItem>
+                  <SidebarMenuButton tooltip="Wyloguj" onClick={logout}>
+                    <LogOutIcon className="h-4 w-4" />
+                    <span>Wyloguj</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
             </div>
           )}
 
           {/* Layout edit */}
-          <div className="flex gap-1 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:items-center">
+          <SidebarMenu className="group-data-[collapsible=icon]:items-center">
             {onToggleEdit && (
-              <button
-                onClick={onToggleEdit}
-                className={`flex h-7 flex-1 items-center justify-center gap-1 rounded-md text-xs transition-colors group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 ${
-                  editMode
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                }`}
-                title={editMode ? 'Zakończ edycję' : 'Edytuj layout'}
-              >
-                <LayoutGridIcon className="h-3.5 w-3.5" />
-                <span className="group-data-[collapsible=icon]:hidden">
-                  {editMode ? 'Gotowe' : 'Edytuj'}
-                </span>
-              </button>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip={editMode ? 'Zakończ edycję' : 'Edytuj layout'}
+                  onClick={onToggleEdit}
+                  className={editMode ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground' : ''}
+                >
+                  <LayoutGridIcon className="h-4 w-4" />
+                  <span>{editMode ? 'Gotowe' : 'Edytuj'}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             )}
             {editMode && onResetLayout && (
-              <button
-                onClick={onResetLayout}
-                className="flex h-7 items-center justify-center gap-1 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:px-0"
-                title="Resetuj layout"
-              >
-                <RotateCcwIcon className="h-3.5 w-3.5" />
-                <span className="group-data-[collapsible=icon]:hidden">Reset</span>
-              </button>
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip="Resetuj layout" onClick={onResetLayout}>
+                  <RotateCcwIcon className="h-4 w-4" />
+                  <span>Reset</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             )}
-          </div>
+          </SidebarMenu>
 
-          <SidebarSeparator className="group-data-[collapsible=icon]:hidden" />
+          <SidebarSeparator className="mx-0 group-data-[collapsible=icon]:hidden" />
 
           {/* Refresh info */}
           <div className="flex flex-col gap-2 pt-2 group-data-[collapsible=icon]:hidden">
@@ -277,14 +261,14 @@ export default function AppSidebar({
               Odśwież
             </button>
           </div>
-          <div className="hidden group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
-            <button
-              onClick={onRefresh}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            >
-              <RefreshCwIcon className="h-4 w-4" />
-            </button>
-          </div>
+          <SidebarMenu className="hidden group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:items-center">
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Odśwież" onClick={onRefresh}>
+                <RefreshCwIcon className="h-4 w-4" />
+                <span>Odśwież</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
 

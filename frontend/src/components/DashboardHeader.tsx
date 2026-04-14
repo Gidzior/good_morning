@@ -13,7 +13,7 @@ export default function DashboardHeader({ now }: DashboardHeaderProps) {
   return (
     <header className="flex items-center gap-3 border-b border-border bg-card px-4 py-3">
       <SidebarTrigger />
-      <Separator orientation="vertical" className="h-5" />
+      <Separator orientation="vertical" />
       <div className="flex flex-1 items-center justify-between">
         <div>
           <h1 className="text-lg font-bold text-foreground">
