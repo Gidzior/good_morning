@@ -183,7 +183,7 @@ function Dashboard() {
         />
         <SidebarInset>
           <DashboardHeader now={now} />
-          <div className="p-6 max-sm:p-4">
+          <div className="p-6 max-sm:p-0">
             {loaded && rssLoaded && todoLoaded && prefsLoaded ? (
               <DashboardGrid
                 widgets={visibleWidgets}
