@@ -68,8 +68,8 @@ function Dashboard() {
   useEffect(() => { loadTodoLists(); }, [loadTodoLists]);
 
   const rssWidgetIds = useMemo(() => rssWidgets.map(w => `rss-${w.id}` as const), [rssWidgets]);
-  const todoWidgetIds = useMemo(() => todoLists.map(t => `todo-${t.id}` as const), [todoLists]);
-  const dynamicWidgetIds = useMemo(() => [...todoWidgetIds, ...rssWidgetIds], [todoWidgetIds, rssWidgetIds]);
+  const todosWidgetIds = useMemo<WidgetId[]>(() => todoLists.length > 0 ? ['todos'] : [], [todoLists]);
+  const dynamicWidgetIds = useMemo(() => [...todosWidgetIds, ...rssWidgetIds], [todosWidgetIds, rssWidgetIds]);
   const { layouts, loaded, editMode, setEditMode, onLayoutChange, resetLayout, restoreWidgetLayout, getWidgetLayout } = useLayout(dynamicWidgetIds);
 
   useEffect(() => {
@@ -104,6 +104,12 @@ function Dashboard() {
     loadTodoLists();
   }, [loadTodoLists]);
 
+  const deleteTodoList = useCallback(async (id: string) => {
+    const r = await fetch(`/api/todo-lists/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (!r.ok) { console.error('Failed to delete todo list:', r.status); return; }
+    loadTodoLists();
+  }, [loadTodoLists]);
+
   const handleDisableWidget = useCallback(async (widgetId: string, deleteData: boolean) => {
     // Save widget's current layout before disabling
     const widgetLayout = getWidgetLayout(widgetId);
@@ -112,10 +118,7 @@ function Dashboard() {
     if (deleteData && widgetId.startsWith('rss-')) {
       loadRssWidgets();
     }
-    if (deleteData && widgetId.startsWith('todo-')) {
-      loadTodoLists();
-    }
-  }, [disableWidget, loadRssWidgets, loadTodoLists, getWidgetLayout]);
+  }, [disableWidget, loadRssWidgets, getWidgetLayout]);
 
   const handleEnableWidget = useCallback(async (widgetId: string) => {
     const savedLayout = await enableWidget(widgetId);
@@ -134,16 +137,24 @@ function Dashboard() {
       { id: 'currencies' as WidgetId, node: <Currencies tick={tick} /> },
       { id: 'stocks' as WidgetId, node: <Stocks tick={tick} /> },
     ];
-    const todoEntries = todoLists.map(t => ({
-      id: `todo-${t.id}` as WidgetId,
-      node: <TodoList key={t.id} listId={t.id} listName={t.name} tick={tick} />,
-    }));
+    const todoEntries = todoLists.length > 0
+      ? [{
+          id: 'todos' as WidgetId,
+          node: (
+            <TodoList
+              lists={todoLists.map(t => ({ id: t.id, name: t.name }))}
+              tick={tick}
+              onDeleteList={deleteTodoList}
+            />
+          ),
+        }]
+      : [];
     const rssEntries = rssWidgets.map(w => ({
       id: `rss-${w.id}` as WidgetId,
       node: <RSS key={w.id} widgetId={w.id} widgetName={w.name} feeds={w.feeds} tick={tick} onFeedsChanged={loadRssWidgets} />,
     }));
     return [...staticWidgets, ...todoEntries, ...rssEntries];
-  }, [tick, todoLists, rssWidgets, loadRssWidgets]);
+  }, [tick, todoLists, rssWidgets, loadRssWidgets, deleteTodoList]);
 
   // Filter to only enabled widgets
   const visibleWidgets = useMemo(
@@ -175,6 +186,7 @@ function Dashboard() {
           onResetLayout={resetLayout}
           onAddRss={() => { setRssName(''); setRssDialogOpen(true); }}
           onAddTodo={() => { setTodoName(''); setTodoDialogOpen(true); }}
+          onDeleteTodoList={deleteTodoList}
           rssWidgets={rssWidgets.map(w => ({ id: w.id, name: w.name }))}
           todoWidgets={todoLists.map(t => ({ id: t.id, name: t.name }))}
           isWidgetEnabled={isEnabled}
@@ -182,7 +194,7 @@ function Dashboard() {
           onDisableWidget={handleDisableWidget}
         />
         <SidebarInset>
-          <DashboardHeader now={now} />
+          <DashboardHeader now={now} onAccount={() => setPage('account')} />
           <div className="p-6 max-sm:p-0">
             {loaded && rssLoaded && todoLoaded && prefsLoaded ? (
               <DashboardGrid

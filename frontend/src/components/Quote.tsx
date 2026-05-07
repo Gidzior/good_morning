@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Card from './DashboardCard';
 import Loading from './Loading';
+import { QuoteIcon } from 'lucide-react';
 
 const FALLBACK_QUOTES = [
   { text: 'Jedynym sposobem na robienie wielkiej pracy jest kochanie tego, co robisz.', author: 'Steve Jobs' },
@@ -27,7 +28,7 @@ export default function Quote({ tick }: { tick: number }) {
   }, [tick]);
 
   return (
-    <Card icon="💬" title="Cytat dnia">
+    <Card icon={<QuoteIcon />} title="Cytat dnia">
       {!quote ? <Loading text="Ładowanie cytatu..." /> : (
         <>
           <div className="quote-text">"{quote.text}"</div>

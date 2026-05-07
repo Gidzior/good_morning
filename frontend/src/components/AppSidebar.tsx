@@ -2,16 +2,16 @@ import { useState } from 'react';
 import {
   Sidebar,
   SidebarContent,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarGroupContent,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
   SidebarHeader,
   SidebarFooter,
-  SidebarSeparator,
+  SidebarTrigger,
+  useSidebar,
 } from '@/components/ui/sidebar';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   CloudSunIcon,
   CalendarIcon,
@@ -21,17 +21,18 @@ import {
   QuoteIcon,
   RefreshCwIcon,
   LogOutIcon,
-  UserIcon,
   LayoutGridIcon,
   RotateCcwIcon,
   PlusIcon,
-  EyeIcon,
-  EyeOffIcon,
-  CheckSquareIcon,
+  ListTodoIcon,
+  Trash2Icon,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { getInitials } from '../utils';
+import { cn } from '@/lib/utils';
 import DisableWidgetDialog from './DisableWidgetDialog';
+import ConfirmDialog from './ConfirmDialog';
 
 interface DynamicWidgetInfo {
   id: string;
@@ -48,6 +49,7 @@ interface AppSidebarProps {
   onResetLayout?: () => void;
   onAddRss?: () => void;
   onAddTodo?: () => void;
+  onDeleteTodoList?: (id: string) => Promise<void>;
   rssWidgets?: DynamicWidgetInfo[];
   todoWidgets?: DynamicWidgetInfo[];
   isWidgetEnabled?: (id: string) => boolean;
@@ -80,6 +82,7 @@ export default function AppSidebar({
   onResetLayout,
   onAddRss,
   onAddTodo,
+  onDeleteTodoList,
   rssWidgets = [],
   todoWidgets = [],
   isWidgetEnabled,
@@ -88,9 +91,7 @@ export default function AppSidebar({
 }: AppSidebarProps) {
   const { user, logout } = useAuth();
   const [disableTarget, setDisableTarget] = useState<{ id: string; name: string } | null>(null);
-
-  const fmtTime = (d: Date) =>
-    d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+  const [deleteListTarget, setDeleteListTarget] = useState<{ id: string; name: string } | null>(null);
 
   const handleToggle = (widgetId: string, widgetName: string) => {
     const enabled = isWidgetEnabled ? isWidgetEnabled(widgetId) : true;
@@ -101,14 +102,12 @@ export default function AppSidebar({
     }
   };
 
-  const allWidgets: WidgetMeta[] = [
+  const widgetRows: WidgetMeta[] = [
     ...STATIC_WIDGETS,
-    ...todoWidgets.map(tw => ({
-      id: `todo-${tw.id}`,
-      icon: CheckSquareIcon,
-      label: tw.name,
-    })),
-    ...rssWidgets.map(rw => ({
+    ...(todoWidgets.length > 0
+      ? [{ id: 'todos', icon: ListTodoIcon, label: 'Zadania' }]
+      : []),
+    ...rssWidgets.map((rw) => ({
       id: `rss-${rw.id}`,
       icon: RssIcon,
       label: rw.name,
@@ -118,157 +117,116 @@ export default function AppSidebar({
   return (
     <>
       <Sidebar variant="inset" collapsible="icon">
-        <SidebarHeader className="p-4 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:py-2 group-data-[collapsible=icon]:min-h-[69px]">
-          <div className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-lg text-primary-foreground">
-              ☀
+        <SidebarHeader className="h-[73px] border-b border-[color:var(--line)] p-0">
+          <div className="flex h-full items-center justify-between gap-2 px-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2">
+            <div className="flex items-center gap-2.5 group-data-[collapsible=icon]:hidden">
+              <div className="size-3.5 shrink-0 rounded-[3px] bg-[color:var(--ink)]" />
+              <span className="font-serif text-[18px] tracking-[-0.01em] text-[color:var(--ink)]">
+                dashboard
+              </span>
             </div>
-            <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-              <span className="text-sm font-bold text-foreground">Dzień Dobry</span>
-              <span className="text-[11px] text-muted-foreground">Poranny dashboard</span>
-            </div>
+            <SidebarTrigger className="size-8 text-[color:var(--ink-2)]" />
           </div>
         </SidebarHeader>
 
-        <SidebarSeparator />
+        <SidebarContent className="px-2 py-2">
+          <Section title="Widgety">
+            {widgetRows.map((w) => (
+              <WidgetToggleRow
+                key={w.id}
+                meta={w}
+                enabled={isWidgetEnabled ? isWidgetEnabled(w.id) : true}
+                onToggle={() => handleToggle(w.id, w.label)}
+              />
+            ))}
+          </Section>
 
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>Widgety</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu className="group-data-[collapsible=icon]:items-center">
-                {allWidgets.map((widget) => {
-                  const enabled = isWidgetEnabled ? isWidgetEnabled(widget.id) : true;
-                  return (
-                    <SidebarMenuItem key={widget.id}>
-                      <SidebarMenuButton
-                        tooltip={widget.label}
-                        className={enabled ? '' : 'opacity-50'}
-                        onClick={() => handleToggle(widget.id, widget.label)}
-                      >
-                        <widget.icon className="h-4 w-4" />
-                        <span className="flex-1">{widget.label}</span>
-                        {isWidgetEnabled && (
-                          <span className="ml-auto text-muted-foreground group-data-[collapsible=icon]:hidden">
-                            {enabled ? <EyeIcon className="size-3" /> : <EyeOffIcon className="size-3" />}
-                          </span>
-                        )}
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-                {onAddTodo && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton tooltip="Dodaj listę zadań" onClick={onAddTodo}>
-                      <PlusIcon className="h-4 w-4" />
-                      <span>Dodaj listę zadań</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
-                {onAddRss && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton tooltip="Dodaj widget RSS" onClick={onAddRss}>
-                      <PlusIcon className="h-4 w-4" />
-                      <span>Dodaj RSS</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          <Section
+            title="Listy zadań"
+            action={
+              onAddTodo ? (
+                <AddButton label="Dodaj listę zadań" onClick={onAddTodo} />
+              ) : null
+            }
+            hideWhenCollapsed
+          >
+            {todoWidgets.length === 0 ? (
+              <EmptyHint>Brak list</EmptyHint>
+            ) : (
+              todoWidgets.map((t) => (
+                <ItemRow
+                  key={t.id}
+                  label={t.name}
+                  dotColor="var(--ink-3)"
+                  onDelete={onDeleteTodoList ? () => setDeleteListTarget({ id: t.id, name: t.name }) : undefined}
+                  deleteLabel="Usuń listę"
+                />
+              ))
+            )}
+          </Section>
+
+          <Section
+            title="Kanały RSS"
+            action={
+              onAddRss ? (
+                <AddButton label="Dodaj kanał RSS" onClick={onAddRss} />
+              ) : null
+            }
+            hideWhenCollapsed
+          >
+            {rssWidgets.length === 0 ? (
+              <EmptyHint>Brak kanałów</EmptyHint>
+            ) : (
+              rssWidgets.map((f) => (
+                <ItemRow
+                  key={f.id}
+                  label={f.name}
+                  dotColor="var(--ink-3)"
+                />
+              ))
+            )}
+          </Section>
         </SidebarContent>
 
-        <SidebarSeparator />
-
-        <SidebarFooter className="p-4 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5 group-data-[collapsible=icon]:py-3">
-          {/* User info */}
-          {user && (
-            <div className="mb-2 group-data-[collapsible=icon]:mb-0">
-              <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-                {user.avatar_url ? (
-                  <img
-                    src={user.avatar_url}
-                    alt=""
-                    className="h-7 w-7 shrink-0 rounded-full"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-                    {user.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div className="flex min-w-0 flex-col group-data-[collapsible=icon]:hidden">
-                  <span className="truncate text-xs font-medium text-foreground">{user.name}</span>
-                  <span className="truncate text-[10px] text-muted-foreground">{user.email}</span>
-                </div>
-              </div>
-              <SidebarMenu className="mt-1.5 group-data-[collapsible=icon]:mt-1">
-                {onAccount && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton tooltip="Konto" onClick={onAccount}>
-                      <UserIcon className="h-4 w-4" />
-                      <span>Konto</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
-                <SidebarMenuItem>
-                  <SidebarMenuButton tooltip="Wyloguj" onClick={logout}>
-                    <LogOutIcon className="h-4 w-4" />
-                    <span>Wyloguj</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </div>
-          )}
-
-          {/* Layout edit */}
-          <SidebarMenu className="group-data-[collapsible=icon]:items-center">
-            {onToggleEdit && (
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  tooltip={editMode ? 'Zakończ edycję' : 'Edytuj layout'}
+        <SidebarFooter className="border-t border-[color:var(--line)] p-2.5">
+          <div className="flex flex-col gap-2 group-data-[collapsible=icon]:items-center">
+            <div className="flex items-center gap-1 group-data-[collapsible=icon]:flex-col">
+              {onToggleEdit && (
+                <FooterIconButton
+                  label={editMode ? 'Zakończ edycję' : 'Edytuj layout'}
+                  active={editMode}
                   onClick={onToggleEdit}
-                  className={editMode ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground' : ''}
-                >
-                  <LayoutGridIcon className="h-4 w-4" />
-                  <span>{editMode ? 'Gotowe' : 'Edytuj'}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
-            {editMode && onResetLayout && (
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Resetuj layout" onClick={onResetLayout}>
-                  <RotateCcwIcon className="h-4 w-4" />
-                  <span>Reset</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
-          </SidebarMenu>
-
-          <SidebarSeparator className="mx-0 group-data-[collapsible=icon]:hidden" />
-
-          {/* Refresh info */}
-          <div className="flex flex-col gap-2 pt-2 group-data-[collapsible=icon]:hidden">
-            <div className="text-[11px] text-muted-foreground">
-              <div>Aktualizacja: {fmtTime(lastUpdate)}</div>
-              {countdown && <div>Następna: {countdown}</div>}
+                  icon={LayoutGridIcon}
+                />
+              )}
+              {editMode && onResetLayout && (
+                <FooterIconButton
+                  label="Resetuj layout"
+                  onClick={onResetLayout}
+                  icon={RotateCcwIcon}
+                />
+              )}
+              <FooterIconButton
+                label={countdown ? `Odśwież (${countdown})` : 'Odśwież'}
+                onClick={onRefresh}
+                icon={RefreshCwIcon}
+              />
             </div>
-            <button
-              onClick={onRefresh}
-              className="flex items-center justify-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-accent-indigo-light"
-            >
-              <RefreshCwIcon className="h-3 w-3" />
-              Odśwież
-            </button>
+
+            {user && (
+              <UserPill
+                name={user.name}
+                email={user.email}
+                avatarUrl={user.avatar_url}
+                onAccount={onAccount}
+                onLogout={logout}
+              />
+            )}
+
+            <div className="px-1 text-[10px] text-[color:var(--ink-3)] group-data-[collapsible=icon]:hidden">
+              Aktualizacja: {lastUpdate.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
+            </div>
           </div>
-          <SidebarMenu className="hidden group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:items-center">
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Odśwież" onClick={onRefresh}>
-                <RefreshCwIcon className="h-4 w-4" />
-                <span>Odśwież</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
 
@@ -285,6 +243,251 @@ export default function AppSidebar({
         }}
         onCancel={() => setDisableTarget(null)}
       />
+
+      <ConfirmDialog
+        open={deleteListTarget !== null}
+        title="Usuń listę zadań"
+        description={`Lista "${deleteListTarget?.name ?? ''}" wraz z wszystkimi zadaniami zostanie trwale usunięta z Google Tasks.`}
+        confirmLabel="Usuń listę"
+        onConfirm={async () => {
+          if (deleteListTarget && onDeleteTodoList) {
+            await onDeleteTodoList(deleteListTarget.id);
+          }
+          setDeleteListTarget(null);
+        }}
+        onCancel={() => setDeleteListTarget(null)}
+      />
     </>
+  );
+}
+
+interface SectionProps {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  hideWhenCollapsed?: boolean;
+}
+
+function Section({ title, action, children, hideWhenCollapsed }: SectionProps) {
+  return (
+    <div className={cn('px-1 pt-3 pb-1 first:pt-1', hideWhenCollapsed && 'group-data-[collapsible=icon]:hidden')}>
+      <div className="flex items-center justify-between px-2 pb-2 group-data-[collapsible=icon]:hidden">
+        <span className="font-mono text-[11px] uppercase tracking-[0.10em] text-[color:var(--ink-3)]">
+          {title}
+        </span>
+        {action}
+      </div>
+      <div className="flex flex-col gap-px">{children}</div>
+    </div>
+  );
+}
+
+function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          onClick={onClick}
+          className="inline-flex size-[22px] items-center justify-center rounded-md border border-[color:var(--line)] bg-[color:var(--surface)] text-[color:var(--ink-2)] transition-colors hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--accent)]"
+        >
+          <PlusIcon className="size-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+interface WidgetToggleRowProps {
+  meta: WidgetMeta;
+  enabled: boolean;
+  onToggle: () => void;
+}
+
+function WidgetToggleRow({ meta, enabled, onToggle }: WidgetToggleRowProps) {
+  const { state } = useSidebar();
+  const collapsed = state === 'collapsed';
+  const Icon = meta.icon;
+
+  const button = (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={enabled}
+      className={cn(
+        'group/row flex w-full min-h-[34px] items-center gap-2.5 rounded-lg border-none px-2.5 py-2 text-left text-[13.5px] transition-colors',
+        'group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:min-h-0 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0',
+        enabled
+          ? 'bg-[color:var(--accent-soft)] text-[color:var(--accent)]'
+          : 'bg-transparent text-[color:var(--ink-2)] hover:bg-[color:var(--accent-soft)]/50',
+      )}
+    >
+      <Icon
+        className="size-4 shrink-0"
+        style={{ color: enabled ? 'var(--accent)' : 'var(--ink-3)' }}
+      />
+      <span
+        className={`flex-1 truncate group-data-[collapsible=icon]:hidden ${
+          enabled ? 'font-semibold' : 'font-medium'
+        }`}
+      >
+        {meta.label}
+      </span>
+      <SwitchPill enabled={enabled} className="group-data-[collapsible=icon]:hidden" />
+    </button>
+  );
+
+  if (!collapsed) return button;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent side="right">{meta.label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function SwitchPill({ enabled, className = '' }: { enabled: boolean; className?: string }) {
+  return (
+    <span
+      className={`relative inline-block h-3.5 w-[26px] shrink-0 rounded-full transition-colors ${className}`}
+      style={{ background: enabled ? 'var(--accent)' : 'var(--line-strong)' }}
+      aria-hidden
+    >
+      <span
+        className="absolute left-[2px] top-[2px] size-2.5 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-transform"
+        style={{ transform: enabled ? 'translateX(12px)' : 'translateX(0)' }}
+      />
+    </span>
+  );
+}
+
+interface ItemRowProps {
+  label: string;
+  dotColor: string;
+  onDelete?: () => void;
+  deleteLabel?: string;
+}
+
+function ItemRow({ label, dotColor, onDelete, deleteLabel = 'Usuń' }: ItemRowProps) {
+  return (
+    <div className="group/item flex min-h-[34px] items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13.5px] text-[color:var(--ink-2)]">
+      <span
+        className="size-2 shrink-0 rounded-full"
+        style={{ background: dotColor }}
+        aria-hidden
+      />
+      <span className="flex-1 truncate group-data-[collapsible=icon]:hidden">{label}</span>
+      {onDelete && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={deleteLabel}
+              onClick={onDelete}
+              className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-[color:var(--ink-3)] opacity-0 transition-opacity hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--bad)] group-hover/item:opacity-100 group-data-[collapsible=icon]:hidden"
+            >
+              <Trash2Icon className="size-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right">{deleteLabel}</TooltipContent>
+        </Tooltip>
+      )}
+    </div>
+  );
+}
+
+function EmptyHint({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-2.5 py-1 text-xs text-[color:var(--ink-3)] group-data-[collapsible=icon]:hidden">
+      {children}
+    </div>
+  );
+}
+
+interface FooterIconButtonProps {
+  label: string;
+  icon: LucideIcon;
+  onClick?: () => void;
+  active?: boolean;
+}
+
+function FooterIconButton({ label, icon: Icon, onClick, active }: FooterIconButtonProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          onClick={onClick}
+          className={`inline-flex size-8 items-center justify-center rounded-lg border border-transparent transition-colors ${
+            active
+              ? 'bg-[color:var(--accent)] text-white'
+              : 'text-[color:var(--ink-2)] hover:border-[color:var(--line)] hover:bg-[color:var(--accent-soft)]'
+          }`}
+        >
+          <Icon className="size-4" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+interface UserPillProps {
+  name: string;
+  email: string;
+  avatarUrl: string | null;
+  onAccount?: () => void;
+  onLogout: () => void;
+}
+
+function UserPill({ name, email, avatarUrl, onAccount, onLogout }: UserPillProps) {
+  const initials = getInitials(name);
+  const avatar = avatarUrl ? (
+    <img
+      src={avatarUrl}
+      alt=""
+      referrerPolicy="no-referrer"
+      className="size-[30px] shrink-0 rounded-full"
+    />
+  ) : (
+    <div className="inline-flex size-[30px] shrink-0 items-center justify-center rounded-full bg-[color:var(--accent)] text-[11px] font-semibold text-white">
+      {initials}
+    </div>
+  );
+
+  return (
+    <div className="flex items-center gap-2.5 rounded-xl p-1.5 group-data-[collapsible=icon]:p-0">
+      <button
+        type="button"
+        onClick={onAccount}
+        aria-label={onAccount ? 'Otwórz konto' : name}
+        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg p-0.5 text-left transition-colors hover:bg-[color:var(--accent-soft)]/60 group-data-[collapsible=icon]:flex-none group-data-[collapsible=icon]:p-0"
+      >
+        {avatar}
+        <div className="min-w-0 group-data-[collapsible=icon]:hidden">
+          <div className="truncate text-[12.5px] font-semibold text-[color:var(--ink)]">
+            {name}
+          </div>
+          <div className="truncate text-[11px] text-[color:var(--ink-3)]">{email}</div>
+        </div>
+      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label="Wyloguj"
+            onClick={onLogout}
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-[color:var(--ink-2)] transition-colors hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--accent)] group-data-[collapsible=icon]:hidden"
+          >
+            <LogOutIcon className="size-[15px]" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top">Wyloguj</TooltipContent>
+      </Tooltip>
+    </div>
   );
 }

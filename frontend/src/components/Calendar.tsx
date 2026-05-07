@@ -3,6 +3,7 @@ import { formatTime, formatDayShort } from '../utils';
 import type { CalendarEvent } from '../types';
 import Loading, { ErrorMsg } from './Loading';
 import Card from './DashboardCard';
+import { CalendarIcon } from 'lucide-react';
 
 interface DayGroup {
   label: string;
@@ -56,7 +57,7 @@ export default function Calendar({ tick }: { tick: number }) {
   }, [tick]);
 
   return (
-    <Card icon="📆" title="Kalendarz — najbliższe 3 dni">
+    <Card icon={<CalendarIcon />} title="Kalendarz — najbliższe 3 dni">
       {noKey ? (
         <div className="cal-empty">
           Zaloguj się do kalendarza Google

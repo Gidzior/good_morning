@@ -8,6 +8,7 @@ import { fmtPLN, fmtChartDate } from '../utils';
 import Loading from './Loading';
 import { Button } from '@/components/ui/button';
 import Card from './DashboardCard';
+import { BanknoteIcon } from 'lucide-react';
 import SettingsModal from './SettingsModal';
 import { TickerGrid } from './TickerCards';
 import type { TickerData } from './TickerCards';
@@ -97,7 +98,7 @@ export default function Currencies({ tick }: { tick: number }) {
   const chartConfig = { value: { label: activeTicker?.code ?? 'Kurs', color: 'var(--chart-1)' } } satisfies ChartConfig;
 
   return (
-    <Card icon="💱" title="Waluty" onSettings={openSettings}>
+    <Card icon={<BanknoteIcon />} title="Waluty" onSettings={openSettings}>
       {loading ? <Loading text="Ładowanie walut..." /> :
        results.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground">

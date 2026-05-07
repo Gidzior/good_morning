@@ -8,6 +8,7 @@ import { fmtPLN, fmtChartDate } from '../utils';
 import Loading from './Loading';
 import { Button } from '@/components/ui/button';
 import Card from './DashboardCard';
+import { TrendingUpIcon } from 'lucide-react';
 import SettingsModal from './SettingsModal';
 import { TickerGrid } from './TickerCards';
 import type { TickerData } from './TickerCards';
@@ -108,7 +109,7 @@ export default function Stocks({ tick }: { tick: number }) {
   const chartConfig = { value: { label: activeTicker?.name ?? 'Kurs', color: 'var(--chart-1)' } } satisfies ChartConfig;
 
   return (
-    <Card icon="📈" title="Akcje" onSettings={() => setShowSettings(true)}>
+    <Card icon={<TrendingUpIcon />} title="Akcje" onSettings={() => setShowSettings(true)}>
       {loading ? <Loading text="Ładowanie kursów..." /> :
        results.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-8 text-muted-foreground">

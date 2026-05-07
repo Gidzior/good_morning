@@ -55,4 +55,4 @@ export type Breakpoint = 'lg' | 'md' | 'sm';
 
 export type BreakpointLayouts = Record<Breakpoint, LayoutItem[]>;
 
-export type WidgetId = 'weather' | 'quote' | 'calendar' | 'crypto' | 'currencies' | 'stocks' | `todo-${string}` | `rss-${string}`;
+export type WidgetId = 'weather' | 'quote' | 'calendar' | 'crypto' | 'currencies' | 'stocks' | 'todos' | `rss-${string}`;

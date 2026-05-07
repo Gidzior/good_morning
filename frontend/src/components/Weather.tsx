@@ -7,6 +7,7 @@ import Card from './DashboardCard';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CloudSunIcon, CalendarDaysIcon } from 'lucide-react';
 
 interface CityConfig {
   lat: number;
@@ -151,7 +152,7 @@ export default function Weather({ tick }: { tick: number }) {
 
   return (
     <div className="grid grid-cols-2 gap-5 max-sm:grid-cols-1">
-      <Card icon="🌤" title="Pogoda" action={cityTabs} onSettings={() => setShowSettings(true)}>
+      <Card icon={<CloudSunIcon />} title="Pogoda" action={cityTabs} onSettings={() => setShowSettings(true)}>
         {cities.length === 0 ? (
           <div className="text-sm text-muted-foreground py-4 text-center">
             Brak miast. Kliknij <button onClick={() => setShowSettings(true)} className="text-primary underline">⚙ ustawienia</button> zeby dodac.
@@ -221,7 +222,7 @@ export default function Weather({ tick }: { tick: number }) {
         )}
       </Card>
 
-      <Card icon="📅" title="Prognoza na dzis">
+      <Card icon={<CalendarDaysIcon />} title="Prognoza na dzis">
         {cities.length === 0 ? (
           <div className="text-sm text-muted-foreground py-4">Dodaj miasto w ustawieniach pogody</div>
         ) : noKey ? (

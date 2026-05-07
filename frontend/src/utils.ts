@@ -31,9 +31,21 @@ export function fmtChartDate(dateStr: string, period: number): string {
   return date.toLocaleDateString('pl-PL', { month: 'short', year: '2-digit' });
 }
 
-export function getGreeting(): string {
-  const h = new Date().getHours();
-  if (h < 6) return 'Dobranoc';
-  if (h < 18) return 'Dzień Dobry';
-  return 'Dobry Wieczór';
+export function getGreeting(date: Date = new Date()): string {
+  const h = date.getHours();
+  if (h < 5) return 'Dobranoc';
+  if (h < 12) return 'Dzień dobry';
+  if (h < 18) return 'Cześć';
+  return 'Dobry wieczór';
+}
+
+export function getFirstName(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] ?? fullName;
+}
+
+export function getInitials(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }

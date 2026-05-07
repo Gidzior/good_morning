@@ -5,6 +5,7 @@ import Card from './DashboardCard';
 import Loading from './Loading';
 import { Input } from '@/components/ui/input';
 import SettingsModal from './SettingsModal';
+import { RssIcon } from 'lucide-react';
 
 export interface RssFeedConfig {
   id: string;
@@ -89,7 +90,7 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
   };
 
   return (
-    <Card icon="📡" title={widgetName} onSettings={() => setShowSettings(true)}>
+    <Card icon={<RssIcon />} title={widgetName} onSettings={() => setShowSettings(true)}>
       {loading ? (
         <Loading text="Ładowanie RSS..." />
       ) : feeds.length === 0 ? (
