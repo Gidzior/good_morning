@@ -178,9 +178,9 @@ export default function TodoList({ lists, tick, onDeleteList }: TodoListProps) {
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
-          {(lists.length > 1 || onDeleteList) && (
+          {activeList && (
             <div className="flex items-center gap-2">
-              {lists.length > 1 && (
+              {lists.length > 1 ? (
                 <div className="flex flex-1 gap-1 overflow-x-auto rounded-lg bg-[color:var(--bg)] p-0.5">
                   {lists.map((l) => {
                     const isActive = l.id === activeId;
@@ -201,17 +201,18 @@ export default function TodoList({ lists, tick, onDeleteList }: TodoListProps) {
                     );
                   })}
                 </div>
+              ) : (
+                <span className="flex-1 truncate px-1 text-[13px] font-semibold text-[color:var(--ink)]">
+                  {activeList.name}
+                </span>
               )}
-              {onDeleteList && activeList && (
+              {onDeleteList && (
                 <button
                   type="button"
                   onClick={() => setDeleteOpen(true)}
                   aria-label={`Usuń listę ${activeList.name}`}
                   title={`Usuń listę „${activeList.name}"`}
-                  className={cn(
-                    'inline-flex size-7 shrink-0 items-center justify-center rounded-md text-[color:var(--ink-3)] transition-colors hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--bad)]',
-                    lists.length <= 1 && 'ml-auto',
-                  )}
+                  className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-[color:var(--ink-3)] transition-colors hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--bad)]"
                 >
                   <Trash2Icon className="size-3.5" />
                 </button>
