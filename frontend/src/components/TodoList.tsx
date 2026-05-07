@@ -202,9 +202,11 @@ export default function TodoList({ lists, tick, onDeleteList }: TodoListProps) {
                   })}
                 </div>
               ) : (
-                <span className="flex-1 truncate px-1 text-[13px] font-semibold text-[color:var(--ink)]">
-                  {activeList.name}
-                </span>
+                <div className="flex flex-1 gap-1 rounded-lg bg-[color:var(--bg)] p-0.5">
+                  <span className="whitespace-nowrap rounded-md bg-[color:var(--surface)] px-2.5 py-[5px] text-xs font-semibold text-[color:var(--ink)] shadow-[var(--shadow-1)]">
+                    {activeList.name}
+                  </span>
+                </div>
               )}
               {onDeleteList && (
                 <button
