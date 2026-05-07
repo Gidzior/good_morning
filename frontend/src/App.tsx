@@ -194,7 +194,7 @@ function Dashboard() {
           onDisableWidget={handleDisableWidget}
         />
         <SidebarInset>
-          <DashboardHeader now={now} onAccount={() => setPage('account')} />
+          <DashboardHeader now={now} tick={tick} onAccount={() => setPage('account')} />
           <div className="p-6 max-sm:p-0">
             {loaded && rssLoaded && todoLoaded && prefsLoaded ? (
               <DashboardGrid

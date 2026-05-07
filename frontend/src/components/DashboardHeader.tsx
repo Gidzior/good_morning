@@ -3,14 +3,15 @@ import { CakeIcon, GiftIcon, SearchIcon, SettingsIcon, LogOutIcon } from 'lucide
 import { useAuth } from '../hooks/useAuth';
 import { formatDate, formatTime, getFirstName, getGreeting, getInitials } from '../utils';
 import { getTodayNameday } from './Nameday';
-import { getTodayHoliday } from '../lib/holidays';
+import { getTodayHolidays } from '../lib/holidays';
 
 interface DashboardHeaderProps {
   now: Date;
+  tick: number;
   onAccount?: () => void;
 }
 
-export default function DashboardHeader({ now, onAccount }: DashboardHeaderProps) {
+export default function DashboardHeader({ now, tick, onAccount }: DashboardHeaderProps) {
   const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -29,7 +30,8 @@ export default function DashboardHeader({ now, onAccount }: DashboardHeaderProps
   const greeting = getGreeting(now);
   const firstName = user ? getFirstName(user.name) : '';
   const nameday = getTodayNameday();
-  const holiday = getTodayHoliday(now);
+  const holidays = getTodayHolidays(now);
+  const holiday = holidays.length > 0 ? holidays[tick % holidays.length] : null;
   const initials = user ? getInitials(user.name) : '?';
 
   return (
