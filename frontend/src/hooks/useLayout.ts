@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { LayoutItem, Breakpoint, BreakpointLayouts } from '../types';
 
 const STATIC_LAYOUT: LayoutItem[] = [
-  { i: 'weather',  x: 0, y: 0, w: 2, h: 4, minW: 2, maxW: 3, minH: 3 },
+  { i: 'weather',  x: 0, y: 0, w: 2, h: 4, minW: 1, maxW: 3, minH: 3 },
   { i: 'quote',    x: 2, y: 0, w: 1, h: 2, minW: 1, maxW: 2, minH: 2 },
   { i: 'calendar', x: 2, y: 2, w: 1, h: 4, minW: 1, maxW: 2, minH: 2 },
   { i: 'crypto',     x: 0, y: 4, w: 1, h: 3, minW: 1, maxW: 3, minH: 2 },
@@ -29,7 +29,10 @@ function mergeWithDefaults(defaults: LayoutItem[], saved: LayoutItem[]): LayoutI
   const savedMap = new Map(saved.map(item => [item.i, item]));
   return defaults.map(d => {
     const s = savedMap.get(d.i);
-    return s ? { ...d, ...s } : d;
+    if (!s) return d;
+    // Saved provides position/size (x, y, w, h); defaults always supply current
+    // constraints (minW, maxW, minH) so updates propagate to existing users.
+    return { ...s, minW: d.minW, maxW: d.maxW, minH: d.minH };
   });
 }
 
