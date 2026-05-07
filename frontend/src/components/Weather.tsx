@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { formatTime } from '../utils';
 import type { WeatherResponse, ForecastItem } from '../types';
 import Loading, { ErrorMsg } from './Loading';
 import SettingsModal from './SettingsModal';
@@ -7,7 +6,18 @@ import Card from './DashboardCard';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CloudSunIcon, CalendarDaysIcon } from 'lucide-react';
+import {
+  CloudSunIcon,
+  SunIcon,
+  CloudIcon,
+  CloudRainIcon,
+  CloudSnowIcon,
+  CloudLightningIcon,
+  CloudFogIcon,
+  DropletIcon,
+  WindIcon,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 interface CityConfig {
   lat: number;
@@ -23,6 +33,24 @@ interface SearchResult {
   lat: number;
   lon: number;
 }
+
+function iconForOwm(code: string): LucideIcon {
+  const id = code.slice(0, 2);
+  switch (id) {
+    case '01': return SunIcon;
+    case '02': return CloudSunIcon;
+    case '03':
+    case '04': return CloudIcon;
+    case '09':
+    case '10': return CloudRainIcon;
+    case '11': return CloudLightningIcon;
+    case '13': return CloudSnowIcon;
+    case '50': return CloudFogIcon;
+    default: return CloudIcon;
+  }
+}
+
+const PL_WEEKDAY_SHORT = ['Nd', 'Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb'];
 
 export default function Weather({ tick }: { tick: number }) {
   const [data, setData] = useState<WeatherResponse | null>(null);
@@ -94,18 +122,12 @@ export default function Weather({ tick }: { tick: number }) {
 
   const noKey = data?.current?.cod === 401;
 
-  const todayStr = new Date().toDateString();
-  const forecasts: ForecastItem[] = data?.forecast?.list
-    ?.filter(item => new Date(item.dt * 1000).toDateString() === todayStr)
-    .slice(0, 5) ?? [];
+  // Hourly: next 8 forecast entries (3-hour intervals from OWM)
+  const hourly: ForecastItem[] = data?.forecast?.list?.slice(0, 8) ?? [];
 
-  const tomorrowStr = new Date(Date.now() + 86400000).toDateString();
-  const displayForecasts = forecasts.length > 0
-    ? forecasts
-    : (data?.forecast?.list?.filter(item => new Date(item.dt * 1000).toDateString() === tomorrowStr).slice(0, 5) ?? []);
-
-  interface DaySummary { date: Date; maxTemp: number; icon: string }
-  const dailyForecast: DaySummary[] = (() => {
+  // Daily: aggregate forecast list into per-day lo/hi for next 5 days (skipping today)
+  interface DaySummary { date: Date; lo: number; hi: number; icon: string }
+  const daily: DaySummary[] = (() => {
     if (!data?.forecast?.list) return [];
     const today = new Date().toDateString();
     const byDay = new Map<string, ForecastItem[]>();
@@ -117,14 +139,15 @@ export default function Weather({ tick }: { tick: number }) {
     }
     const days: DaySummary[] = [];
     for (const [dayStr, items] of byDay) {
-      if (days.length >= 3) break;
-      const maxTemp = Math.max(...items.map(i => i.main.temp));
-      const noonItem = items.find(i => {
+      if (days.length >= 5) break;
+      const temps = items.map(i => i.main.temp);
+      const lo = Math.min(...temps);
+      const hi = Math.max(...temps);
+      const noon = items.find(i => {
         const h = new Date(i.dt * 1000).getHours();
         return h >= 12 && h <= 15;
-      });
-      const icon = (noonItem || items[0]).weather[0].icon;
-      days.push({ date: new Date(dayStr), maxTemp, icon });
+      }) ?? items[0];
+      days.push({ date: new Date(dayStr), lo, hi, icon: noon.weather[0].icon });
     }
     return days;
   })();
@@ -148,155 +171,182 @@ export default function Weather({ tick }: { tick: number }) {
         ))}
       </SelectContent>
     </Select>
-  ) : null;
+  ) : (
+    <span className="font-mono text-[11px] tracking-[0.04em] text-[color:var(--ink-3)]">
+      {selected?.name ?? ''}
+    </span>
+  );
+
+  const cityLabel = cities.length > 0 ? cityTabs : null;
+  const renderBody = () => {
+    if (cities.length === 0) {
+      return (
+        <div className="py-4 text-center text-sm text-[color:var(--ink-3)]">
+          Brak miast. Kliknij{' '}
+          <button onClick={() => setShowSettings(true)} className="text-[color:var(--accent)] underline">
+            ustawienia
+          </button>{' '}
+          aby dodać.
+        </div>
+      );
+    }
+    if (noKey) return <ErrorMsg message="Brak klucza WEATHER_API_KEY w .env" />;
+    if (error) return <ErrorMsg message={`Błąd pogody: ${error}`} />;
+    if (!data) return <Loading text="Ładowanie pogody..." />;
+    if (data.current.cod !== 200) return <ErrorMsg message={`Błąd: ${data.current.message}`} />;
+
+    const TopIcon = iconForOwm(data.current.weather[0].icon);
+    const temp = Math.round(data.current.main.temp);
+    const feels = Math.round(data.current.main.feels_like);
+    const humidity = data.current.main.humidity;
+    const wind = Math.round(data.current.wind.speed * 3.6);
+    const condition = data.current.weather[0].description;
+
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <div className="flex items-center gap-4">
+          <TopIcon className="size-14 shrink-0 text-[color:var(--accent)]" strokeWidth={1.4} />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex items-baseline gap-2.5">
+              <span className="font-serif text-[44px] font-medium leading-none tracking-[-0.03em] text-[color:var(--ink)]">
+                {temp}°
+              </span>
+              <span className="text-[11px] text-[color:var(--ink-3)]">odczuwalna {feels}°</span>
+            </div>
+            <div className="mt-0.5 text-[13px] capitalize text-[color:var(--ink-2)]">{condition}</div>
+            <div className="mt-1.5 flex gap-3.5 text-[11.5px] text-[color:var(--ink-2)]">
+              <span className="inline-flex items-center gap-1">
+                <DropletIcon className="size-3 text-[color:var(--ink-3)]" />
+                {humidity}%
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <WindIcon className="size-3 text-[color:var(--ink-3)]" />
+                {wind} km/h
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {hourly.length > 0 && (
+          <div className="grid grid-cols-8 gap-1 border-y border-[color:var(--line)] py-2.5">
+            {hourly.map((h, i) => {
+              const HourIcon = iconForOwm(h.weather[0].icon);
+              const hour = new Date(h.dt * 1000).getHours();
+              return (
+                <div key={i} className="flex flex-col items-center gap-1 py-1">
+                  <span className="font-mono text-[10.5px] text-[color:var(--ink-3)]">
+                    {String(hour).padStart(2, '0')}
+                  </span>
+                  <HourIcon className="size-[18px] text-[color:var(--ink-2)]" strokeWidth={1.6} />
+                  <span className="font-mono text-[12px] font-medium text-[color:var(--ink)]">
+                    {Math.round(h.main.temp)}°
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {daily.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            {daily.map((d, i) => {
+              const DayIcon = iconForOwm(d.icon);
+              const lo = Math.round(d.lo);
+              const hi = Math.round(d.hi);
+              const left = Math.max(0, Math.min(100, ((lo + 10) / 45) * 100));
+              const width = Math.max(4, Math.min(100 - left, ((hi - lo) / 45) * 100));
+              return (
+                <div
+                  key={i}
+                  className="grid items-center gap-2.5 text-xs"
+                  style={{ gridTemplateColumns: '28px 22px 1fr 70px' }}
+                >
+                  <span className="text-[color:var(--ink-2)]">
+                    {PL_WEEKDAY_SHORT[d.date.getDay()]}
+                  </span>
+                  <DayIcon className="size-4 text-[color:var(--ink-2)]" strokeWidth={1.6} />
+                  <div className="relative h-1 rounded-sm bg-[color:var(--bg)]">
+                    <div
+                      className="absolute top-0 h-1 rounded-sm"
+                      style={{
+                        left: `${left}%`,
+                        width: `${width}%`,
+                        background: 'linear-gradient(90deg, #6FA8DC, #B7791F, #C0392B)',
+                      }}
+                    />
+                  </div>
+                  <span className="text-right font-mono text-[11.5px] text-[color:var(--ink-2)]">
+                    {lo}° / {hi}°
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <div className="grid grid-cols-2 gap-5 max-sm:grid-cols-1">
-      <Card icon={<CloudSunIcon />} title="Pogoda" action={cityTabs} onSettings={() => setShowSettings(true)}>
-        {cities.length === 0 ? (
-          <div className="text-sm text-muted-foreground py-4 text-center">
-            Brak miast. Kliknij <button onClick={() => setShowSettings(true)} className="text-primary underline">⚙ ustawienia</button> zeby dodac.
-          </div>
-        ) : noKey ? (
-          <div className="weather-main">
-            <div>
-              <div className="weather-temp">--°C</div>
-              <div className="weather-desc">Uzupelnij WEATHER_API_KEY w pliku .env</div>
-            </div>
-          </div>
-        ) : error ? (
-          <ErrorMsg message={`Błąd pogody: ${error}`} />
-        ) : !data ? (
-          <Loading text="Ładowanie pogody..." />
-        ) : data.current.cod !== 200 ? (
-          <ErrorMsg message={`Blad: ${data.current.message}`} />
-        ) : (
-          <>
-            <div className="weather-main">
-              <img
-                className="weather-icon"
-                src={`https://openweathermap.org/img/wn/${data.current.weather[0].icon}@2x.png`}
-                alt=""
-              />
-              <div>
-                <div className="weather-temp">{Math.round(data.current.main.temp)}°C</div>
-                <div className="weather-desc">{data.current.weather[0].description}</div>
-              </div>
-            </div>
-            <div className="weather-details">
-              <div className="weather-detail">
-                <div className="label">Odczuwalna</div>
-                <div className="value">{Math.round(data.current.main.feels_like)}°</div>
-              </div>
-              <div className="weather-detail">
-                <div className="label">Wilgotnosc</div>
-                <div className="value">{data.current.main.humidity}%</div>
-              </div>
-              <div className="weather-detail">
-                <div className="label">Wiatr</div>
-                <div className="value">{Math.round(data.current.wind.speed * 3.6)} km/h</div>
-              </div>
-            </div>
-            {dailyForecast.length > 0 && (
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                {dailyForecast.map((day, i) => (
-                  <div key={i} className="flex items-center gap-2 rounded-lg bg-secondary px-2 py-2">
-                    <img
-                      src={`https://openweathermap.org/img/wn/${day.icon}@2x.png`}
-                      alt=""
-                      className="h-9 w-9 shrink-0"
-                    />
-                    <div className="flex min-w-0 flex-col">
-                      <span className="text-xs font-medium capitalize text-foreground">
-                        {day.date.toLocaleDateString('pl-PL', { weekday: 'short' })}
-                      </span>
-                      <span className="text-sm font-bold text-foreground">
-                        {Math.round(day.maxTemp)}°
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
+    <>
+      <Card icon={<CloudSunIcon />} title="Pogoda" action={cityLabel} onSettings={() => setShowSettings(true)}>
+        {renderBody()}
       </Card>
 
-      <Card icon={<CalendarDaysIcon />} title="Prognoza na dzis">
-        {cities.length === 0 ? (
-          <div className="text-sm text-muted-foreground py-4">Dodaj miasto w ustawieniach pogody</div>
-        ) : noKey ? (
-          <ErrorMsg message="Brak klucza API pogody" />
-        ) : !data ? (
-          <Loading text="Ładowanie prognozy..." />
-        ) : displayForecasts.length === 0 ? (
-          <div className="cal-empty">Brak danych prognozy</div>
-        ) : (
-          displayForecasts.map((item, i) => (
-            <div className="forecast-row" key={i}>
-              <span className="time">{formatTime(new Date(item.dt * 1000))}</span>
-              <img src={`https://openweathermap.org/img/wn/${item.weather[0].icon}.png`} alt="" />
-              <span className="temp">{Math.round(item.main.temp)}°C</span>
-              <span className="desc">{item.weather[0].description}</span>
-            </div>
-          ))
-        )}
-      </Card>
-
-      <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} title="Zarzadzaj miastami">
+      <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} title="Zarządzaj miastami">
         <Input
-              type="text"
-              value={query}
-              onChange={e => handleSearch(e.target.value)}
-              placeholder="Szukaj miasta (np. Warszawa, Paris)..."
-              className="mb-3"
-              autoFocus
-            />
-            {searching && <p className="mb-2 text-xs text-muted-foreground">Szukam...</p>}
-            {searchResults.length > 0 && (
-              <div className="mb-4 max-h-40 overflow-y-auto rounded-lg border">
-                {searchResults.map((c, i) => {
-                  const exists = cities.some(x => x.lat === c.lat && x.lon === c.lon);
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => !exists && addCity(c)}
-                      disabled={exists}
-                      className={cn(
-                        'flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-secondary',
-                        exists && 'opacity-40',
-                      )}
-                    >
-                      <span>
-                        <span className="font-medium">{c.name}</span>
-                        {c.state && <span className="text-muted-foreground">, {c.state}</span>}
-                        <span className="text-muted-foreground"> ({c.country})</span>
-                      </span>
-                      {exists ? (
-                        <span className="text-xs text-muted-foreground">dodane</span>
-                      ) : (
-                        <span className="text-primary">+</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+          type="text"
+          value={query}
+          onChange={e => handleSearch(e.target.value)}
+          placeholder="Szukaj miasta (np. Warszawa, Paris)..."
+          className="mb-3"
+          autoFocus
+        />
+        {searching && <p className="mb-2 text-xs text-muted-foreground">Szukam...</p>}
+        {searchResults.length > 0 && (
+          <div className="mb-4 max-h-40 overflow-y-auto rounded-lg border">
+            {searchResults.map((c, i) => {
+              const exists = cities.some(x => x.lat === c.lat && x.lon === c.lon);
+              return (
+                <button
+                  key={i}
+                  onClick={() => !exists && addCity(c)}
+                  disabled={exists}
+                  className={cn(
+                    'flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-secondary',
+                    exists && 'opacity-40',
+                  )}
+                >
+                  <span>
+                    <span className="font-medium">{c.name}</span>
+                    {c.state && <span className="text-muted-foreground">, {c.state}</span>}
+                    <span className="text-muted-foreground"> ({c.country})</span>
+                  </span>
+                  {exists ? (
+                    <span className="text-xs text-muted-foreground">dodane</span>
+                  ) : (
+                    <span className="text-primary">+</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-            <div className="text-xs font-medium text-muted-foreground mb-2">Twoje miasta ({cities.length})</div>
-            {cities.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Brak — wyszukaj i dodaj miasta powyżej</p>
-            ) : (
-              <div className="space-y-1">
-                {cities.map(c => (
-                  <div key={`${c.lat}-${c.lon}`} className="flex items-center justify-between rounded-lg border px-3 py-2">
-                    <span className="text-sm font-medium">{c.name} <span className="text-muted-foreground">({c.country})</span></span>
-                    <button onClick={() => removeCity(c)} className="ml-2 text-destructive hover:text-destructive/80 text-lg leading-none">&times;</button>
-                  </div>
-                ))}
+        <div className="text-xs font-medium text-muted-foreground mb-2">Twoje miasta ({cities.length})</div>
+        {cities.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Brak — wyszukaj i dodaj miasta powyżej</p>
+        ) : (
+          <div className="space-y-1">
+            {cities.map(c => (
+              <div key={`${c.lat}-${c.lon}`} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                <span className="text-sm font-medium">{c.name} <span className="text-muted-foreground">({c.country})</span></span>
+                <button onClick={() => removeCity(c)} className="ml-2 text-destructive hover:text-destructive/80 text-lg leading-none">&times;</button>
               </div>
-            )}
+            ))}
+          </div>
+        )}
       </SettingsModal>
-    </div>
+    </>
   );
 }
