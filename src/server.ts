@@ -89,8 +89,52 @@ function cached<T>(key: string, ttlMs: number, fetcher: () => Promise<T>): Promi
 }
 
 const THIRTY_MIN = 30 * 60 * 1000;
+const FIVE_MIN = 5 * 60 * 1000;
 
 interface ChartPoint { date: string; value: number }
+
+// --- USD/PLN helpers (NBP) ---
+async function getUsdPlnRate(): Promise<number> {
+  return cached('nbp-usd-pln-current', FIVE_MIN, async () => {
+    const r = await fetch('https://api.nbp.pl/api/exchangerates/rates/A/USD/?format=json');
+    if (!r.ok) throw new Error(`NBP HTTP ${r.status}`);
+    const j = await r.json() as { rates: { mid: number }[] };
+    const mid = j.rates?.[0]?.mid;
+    if (!mid) throw new Error('NBP USD/PLN unavailable');
+    return mid;
+  });
+}
+
+/** Returns map of date (YYYY-MM-DD) → USD/PLN mid rate for last N days, plus latest rate as fallback. */
+async function getUsdPlnSeries(days: number): Promise<{ byDate: Map<string, number>; latest: number }> {
+  const cacheKey = `nbp-usd-pln-series-${days}`;
+  return cached(cacheKey, THIRTY_MIN, async () => {
+    const url = `https://api.nbp.pl/api/exchangerates/rates/A/USD/last/${Math.min(days + 10, 367)}/?format=json`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`NBP HTTP ${r.status}`);
+    const j = await r.json() as { rates: { effectiveDate: string; mid: number }[] };
+    const rates = j.rates || [];
+    const byDate = new Map<string, number>();
+    for (const e of rates) byDate.set(e.effectiveDate, e.mid);
+    const latest = rates[rates.length - 1]?.mid;
+    if (!latest) throw new Error('NBP USD/PLN series empty');
+    return { byDate, latest };
+  });
+}
+
+/** Look up USD/PLN rate for a date, walking back up to 7 days for weekends/holidays. */
+function rateForDate(series: { byDate: Map<string, number>; latest: number }, date: string): number {
+  const direct = series.byDate.get(date);
+  if (direct) return direct;
+  const d = new Date(date);
+  for (let i = 1; i <= 7; i++) {
+    d.setDate(d.getDate() - 1);
+    const key = d.toISOString().slice(0, 10);
+    const v = series.byDate.get(key);
+    if (v) return v;
+  }
+  return series.latest;
+}
 
 /** Shared handler for cached history endpoints — DRY wrapper for try/cached/res.json/catch */
 async function cachedHistoryHandler(
@@ -223,15 +267,28 @@ app.get('/api/weather', async (req, res) => {
   }
 });
 
-// --- API: BTC from Zonda ---
+// --- API: BTC from Binance (USDT) converted to PLN via NBP ---
 app.get('/api/btc', async (_req, res) => {
   try {
-    const r = await fetch('https://api.zondacrypto.exchange/rest/trading/ticker/BTC-PLN');
-    const data = await r.json();
-    res.json(data);
+    const [t, usd] = await Promise.all([
+      fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT').then(json) as Promise<{ lastPrice: string; openPrice: string; highPrice: string; lowPrice: string }>,
+      getUsdPlnRate(),
+    ]);
+    const rate = parseFloat(t.lastPrice) * usd;
+    const previousRate = parseFloat(t.openPrice) * usd;
+    res.json({
+      ticker: {
+        market: { code: 'BTC-PLN', first: { currency: 'BTC' }, second: { currency: 'PLN' } },
+        rate: rate.toFixed(2),
+        previousRate: previousRate.toFixed(2),
+        highestBid: rate.toFixed(2),
+        lowestAsk: rate.toFixed(2),
+        time: Date.now(),
+      },
+    });
   } catch (e: unknown) {
-    const msg = errMsg(e);
-    res.status(500).json({ error: msg });
+    console.error('Binance BTC error:', errMsg(e));
+    res.status(502).json({ error: 'Binance API unavailable' });
   }
 });
 
@@ -276,17 +333,20 @@ app.get('/api/currencies/history/:code', async (req, res) => {
   });
 });
 
-// --- API: Historical BTC/PLN (CoinGecko, cached 30min) ---
+// --- API: Historical BTC/PLN (Binance + NBP, cached 30min) ---
 app.get('/api/btc/history', async (_req, res) => {
   const days = Math.min(Number(_req.query.days) || 30, 365);
   await cachedHistoryHandler(res, `btc-history-${days}`, async () => {
-    const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=pln&days=${days}`;
-    const data = await fetch(url).then(json) as { prices: [number, number][] };
-    const byDate = new Map<string, number>();
-    for (const [ts, price] of data.prices || []) {
-      byDate.set(new Date(ts).toISOString().slice(0, 10), Math.round(price * 100) / 100);
-    }
-    return Array.from(byDate, ([date, value]) => ({ date, value }));
+    const [klines, series] = await Promise.all([
+      fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=${days}`).then(json) as Promise<[number, string, string, string, string][]>,
+      getUsdPlnSeries(days),
+    ]);
+    return (klines || []).map(k => {
+      const date = new Date(k[0]).toISOString().slice(0, 10);
+      const close = parseFloat(k[4]);
+      const rate = rateForDate(series, date);
+      return { date, value: Math.round(close * rate * 100) / 100 };
+    });
   });
 });
 
@@ -350,58 +410,64 @@ app.delete('/api/user-cryptos/:symbol', (req, res) => {
   res.json({ ok: true });
 });
 
-// --- API: Available Zonda PLN pairs ---
+// --- API: Available Binance USDT spot pairs ---
 app.get('/api/cryptos/available', async (_req, res) => {
   try {
-    const data = await cached('zonda-pairs', THIRTY_MIN, async () => {
-      const r = await fetch('https://api.zondacrypto.exchange/rest/trading/ticker');
-      const j = await r.json() as { items: Record<string, { market: { first: { currency: string }; second: { currency: string } } }> };
-      return Object.entries(j.items || {})
-        .filter(([k]) => k.endsWith('-PLN'))
-        .map(([k, v]) => ({ symbol: k.replace('-PLN', ''), name: v.market?.first?.currency || k.replace('-PLN', '') }))
+    const data = await cached('binance-usdt-pairs', THIRTY_MIN, async () => {
+      const r = await fetch('https://api.binance.com/api/v3/exchangeInfo');
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json() as { symbols: { symbol: string; baseAsset: string; quoteAsset: string; status: string; isSpotTradingAllowed: boolean }[] };
+      return (j.symbols || [])
+        .filter(s => s.quoteAsset === 'USDT' && s.status === 'TRADING' && s.isSpotTradingAllowed)
+        .map(s => ({ symbol: s.baseAsset, name: s.baseAsset }))
         .sort((a, b) => a.symbol.localeCompare(b.symbol));
     });
     res.json(data);
   } catch (e) {
-    console.error('Zonda pairs error:', errMsg(e));
-    res.status(502).json({ error: 'Zonda API unavailable' });
+    console.error('Binance pairs error:', errMsg(e));
+    res.status(502).json({ error: 'Binance API unavailable' });
   }
 });
 
-// --- API: Crypto ticker from Zonda ---
+// --- API: Crypto ticker from Binance (USDT) converted to PLN via NBP ---
 app.get('/api/crypto/:symbol', async (req, res) => {
   try {
-    const r = await fetch(`https://api.zondacrypto.exchange/rest/trading/ticker/${req.params.symbol}-PLN`);
-    const data = await r.json();
-    res.json(data);
+    const symbol = req.params.symbol.toUpperCase();
+    const [t, usd] = await Promise.all([
+      fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}USDT`).then(json) as Promise<{ lastPrice: string; openPrice: string }>,
+      getUsdPlnRate(),
+    ]);
+    const rate = parseFloat(t.lastPrice) * usd;
+    const previousRate = parseFloat(t.openPrice) * usd;
+    res.json({
+      ticker: {
+        market: { code: `${symbol}-PLN`, first: { currency: symbol }, second: { currency: 'PLN' } },
+        rate: rate.toFixed(2),
+        previousRate: previousRate.toFixed(2),
+        time: Date.now(),
+      },
+    });
   } catch (e: unknown) {
-    const msg = errMsg(e);
-    res.status(500).json({ error: msg });
+    console.error('Binance ticker error:', errMsg(e));
+    res.status(502).json({ error: 'Binance API unavailable' });
   }
 });
 
-// --- API: Historical crypto from CoinGecko ---
+// --- API: Historical crypto from Binance klines + NBP, cached 30min ---
 app.get('/api/crypto/:symbol/history', async (req, res) => {
-  const { symbol } = req.params;
+  const symbol = req.params.symbol.toUpperCase();
   const days = Math.min(Number(req.query.days) || 30, 365);
-  const cacheKey = `crypto-${symbol}-${days}`;
-
-  // Map common symbols to CoinGecko IDs
-  const geckoMap: Record<string, string> = {
-    BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', ADA: 'cardano', DOT: 'polkadot',
-    DOGE: 'dogecoin', XRP: 'ripple', LINK: 'chainlink', AVAX: 'avalanche-2',
-    MATIC: 'matic-network', ATOM: 'cosmos', UNI: 'uniswap', LTC: 'litecoin',
-  };
-  const geckoId = geckoMap[symbol.toUpperCase()] || symbol.toLowerCase();
-
-  await cachedHistoryHandler(res, cacheKey, async () => {
-    const url = `https://api.coingecko.com/api/v3/coins/${geckoId}/market_chart?vs_currency=pln&days=${days}`;
-    const data = await fetch(url).then(json) as { prices: [number, number][] };
-    const byDate = new Map<string, number>();
-    for (const [ts, price] of data.prices || []) {
-      byDate.set(new Date(ts).toISOString().slice(0, 10), Math.round(price * 100) / 100);
-    }
-    return Array.from(byDate, ([date, value]) => ({ date, value }));
+  await cachedHistoryHandler(res, `crypto-${symbol}-${days}`, async () => {
+    const [klines, series] = await Promise.all([
+      fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}USDT&interval=1d&limit=${days}`).then(json) as Promise<[number, string, string, string, string][]>,
+      getUsdPlnSeries(days),
+    ]);
+    return (klines || []).map(k => {
+      const date = new Date(k[0]).toISOString().slice(0, 10);
+      const close = parseFloat(k[4]);
+      const rate = rateForDate(series, date);
+      return { date, value: Math.round(close * rate * 100) / 100 };
+    });
   });
 });
 
