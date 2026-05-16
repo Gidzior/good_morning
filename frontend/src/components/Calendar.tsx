@@ -1,17 +1,43 @@
 import { useState, useEffect } from 'react';
-import { formatTime, formatDayShort } from '../utils';
+import { formatTime, formatDayHeader } from '../utils';
 import type { CalendarEvent } from '../types';
 import Loading, { ErrorMsg } from './Loading';
 import Card from './DashboardCard';
 import { CalendarIcon } from 'lucide-react';
 
+type EventStatus = 'past' | 'current' | 'future';
+
 interface DayGroup {
   label: string;
-  events: CalendarEvent[];
+  allDay: CalendarEvent[];
+  timed: CalendarEvent[];
+  isToday: boolean;
+}
+
+function isAllDay(ev: CalendarEvent): boolean {
+  return !ev.start.dateTime && !!ev.start.date;
+}
+
+function eventStatus(ev: CalendarEvent, now: Date): EventStatus {
+  if (!ev.start.dateTime || !ev.end.dateTime) return 'future';
+  const start = new Date(ev.start.dateTime);
+  const end = new Date(ev.end.dateTime);
+  if (end <= now) return 'past';
+  if (start <= now && now < end) return 'current';
+  return 'future';
+}
+
+function pluralEvents(n: number): string {
+  if (n === 1) return '1 wydarzenie dziś';
+  const last = n % 10;
+  const lastTwo = n % 100;
+  if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return `${n} wydarzenia dziś`;
+  return `${n} wydarzeń dziś`;
 }
 
 export default function Calendar({ tick }: { tick: number }) {
   const [days, setDays] = useState<DayGroup[]>([]);
+  const [todayCount, setTodayCount] = useState(0);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [noKey, setNoKey] = useState(false);
@@ -42,22 +68,31 @@ export default function Calendar({ tick }: { tick: number }) {
           const d = new Date(now);
           d.setDate(d.getDate() + i);
           const dayStr = d.toDateString();
-          const label = i === 0 ? 'Dziś' : i === 1 ? 'Jutro' : formatDayShort(d);
           const dayEvents = events.filter(ev => {
             const start = ev.start.dateTime ? new Date(ev.start.dateTime) : new Date(ev.start.date!);
             return start.toDateString() === dayStr;
           });
-          grouped.push({ label, events: dayEvents });
+          grouped.push({
+            label: formatDayHeader(d, i),
+            allDay: dayEvents.filter(isAllDay),
+            timed: dayEvents.filter(ev => !isAllDay(ev)),
+            isToday: i === 0,
+          });
         }
 
         setDays(grouped);
+        setTodayCount(grouped[0] ? grouped[0].allDay.length + grouped[0].timed.length : 0);
         setLoading(false);
       })
       .catch(e => { console.error('Calendar fetch error:', e); setError(e instanceof Error ? e.message : 'Unknown error'); setLoading(false); });
   }, [tick]);
 
+  const countLabel = !loading && !error && !noKey
+    ? <span className="cal-count">{pluralEvents(todayCount)}</span>
+    : undefined;
+
   return (
-    <Card icon={<CalendarIcon />} title="Kalendarz — najbliższe 3 dni">
+    <Card icon={<CalendarIcon />} title="Kalendarz" action={countLabel}>
       {noKey ? (
         <div className="cal-empty">
           Zaloguj się do kalendarza Google
@@ -70,19 +105,30 @@ export default function Calendar({ tick }: { tick: number }) {
         days.map((day, i) => (
           <div className="cal-day" key={i}>
             <div className="cal-day-header">{day.label}</div>
-            {day.events.length === 0 ? (
+            {day.allDay.map((ev, j) => (
+              <div className="cal-allday-pill" key={`a${j}`}>
+                {ev.summary || '(bez tytułu)'}
+              </div>
+            ))}
+            {day.allDay.length === 0 && day.timed.length === 0 ? (
               <div className="cal-empty">Brak wydarzeń</div>
             ) : (
-              day.events.map((ev, j) => {
-                let time = 'Cały dzień';
-                if (ev.start.dateTime) {
-                  time = `${formatTime(new Date(ev.start.dateTime))} - ${formatTime(new Date(ev.end.dateTime!))}`;
+              day.timed.map((ev, j) => {
+                const status = day.isToday ? eventStatus(ev, new Date()) : 'future';
+                const time = `${formatTime(new Date(ev.start.dateTime!))} - ${formatTime(new Date(ev.end.dateTime!))}`;
+                const color = ev.calendarColor;
+                const style: React.CSSProperties = {};
+                if (color) {
+                  style.borderLeftColor = color;
+                  if (status === 'current') {
+                    style.background = `color-mix(in srgb, ${color} 15%, var(--secondary))`;
+                  }
                 }
                 return (
                   <div
-                    className="cal-event"
+                    className={`cal-event cal-event-${status}`}
                     key={j}
-                    style={ev.calendarColor ? { borderLeftColor: ev.calendarColor } : undefined}
+                    style={style}
                   >
                     <span className="time">{time}</span>
                     <span className="title">{ev.summary || '(bez tytułu)'}</span>

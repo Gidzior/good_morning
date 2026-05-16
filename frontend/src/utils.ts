@@ -12,6 +12,14 @@ export function formatDayShort(date: Date): string {
   return date.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
+export function formatDayHeader(date: Date, offset: number): string {
+  const dayMonth = date.toLocaleDateString('pl-PL', { day: 'numeric', month: 'long' }).toUpperCase();
+  if (offset === 0) return `DZIŚ ${dayMonth}`;
+  if (offset === 1) return `JUTRO ${dayMonth}`;
+  const weekday = date.toLocaleDateString('pl-PL', { weekday: 'long' }).toUpperCase();
+  return `${weekday} ${dayMonth}`;
+}
+
 export function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);

@@ -94,9 +94,40 @@
   border-left: 3px solid var(--primary);
 }
 
-.cal-event .time { font-size: 13px; color: var(--muted-foreground); min-width: 90px; font-weight: 500; }
+.cal-event .time {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  min-width: 90px;
+  font-weight: 500;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
 .cal-event .title { font-size: 14px; font-weight: 500; color: var(--foreground); }
 .cal-empty { color: var(--muted-foreground); font-size: 13px; font-style: italic; padding: 8px 0; }
+
+.cal-event-past { opacity: 0.5; }
+.cal-event-past .time,
+.cal-event-past .title { color: var(--muted-foreground); }
+
+.cal-event-current { border-left-width: 4px; }
+.cal-event-current .title { color: var(--foreground); font-weight: 600; }
+
+.cal-allday-pill {
+  display: block;
+  padding: 8px 12px;
+  background: color-mix(in srgb, #f59e0b 12%, var(--secondary));
+  border: 1px solid color-mix(in srgb, #f59e0b 30%, transparent);
+  color: color-mix(in srgb, #c2410c 70%, var(--foreground));
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.cal-count {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
 
 /* Articles */
 .article {
