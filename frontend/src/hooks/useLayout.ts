@@ -25,6 +25,9 @@ function deriveBreakpointDefaults(lg: LayoutItem[]): BreakpointLayouts {
   };
 }
 
+const defaultBreakpointLayouts = (ids: string[]): BreakpointLayouts =>
+  deriveBreakpointDefaults(buildDefaultLayout(ids));
+
 function mergeWithDefaults(defaults: LayoutItem[], saved: LayoutItem[]): LayoutItem[] {
   const savedMap = new Map(saved.map(item => [item.i, item]));
   return defaults.map(d => {
@@ -47,9 +50,7 @@ function isSavedLayouts(data: unknown): data is SavedLayouts {
 }
 
 export function useLayout(dynamicWidgetIds: string[] = []) {
-  const defaultLayout = buildDefaultLayout(dynamicWidgetIds);
-  const defaultLayouts = deriveBreakpointDefaults(defaultLayout);
-  const [layouts, setLayouts] = useState<BreakpointLayouts>(defaultLayouts);
+  const [layouts, setLayouts] = useState<BreakpointLayouts>(defaultBreakpointLayouts(dynamicWidgetIds));
   const [loaded, setLoaded] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -59,8 +60,7 @@ export function useLayout(dynamicWidgetIds: string[] = []) {
 
   useEffect(() => {
     const ids = widgetIdsKey === '' ? [] : widgetIdsKey.split(',');
-    const def = buildDefaultLayout(ids);
-    const defBp = deriveBreakpointDefaults(def);
+    const defBp = defaultBreakpointLayouts(ids);
     fetch('/api/layout')
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then((data: { layout: unknown }) => {
@@ -80,7 +80,7 @@ export function useLayout(dynamicWidgetIds: string[] = []) {
           setLayouts(merged);
         } else if (Array.isArray(data.layout) && data.layout.length > 0) {
           // Legacy format: single LayoutItem[] — treat as lg, derive others
-          const lgMerged = mergeWithDefaults(def, data.layout as LayoutItem[]);
+          const lgMerged = mergeWithDefaults(defBp.lg, data.layout as LayoutItem[]);
           setLayouts(deriveBreakpointDefaults(lgMerged));
         } else {
           setLayouts(defBp);
@@ -110,8 +110,7 @@ export function useLayout(dynamicWidgetIds: string[] = []) {
   }, [saveLayouts]);
 
   const resetLayout = useCallback(() => {
-    const def = buildDefaultLayout(dynamicWidgetIds);
-    const defBp = deriveBreakpointDefaults(def);
+    const defBp = defaultBreakpointLayouts(dynamicWidgetIds);
     setLayouts(defBp);
     saveLayouts(defBp);
   }, [saveLayouts, dynamicWidgetIds]);

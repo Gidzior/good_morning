@@ -32,7 +32,6 @@ import { useAuth } from '../hooks/useAuth';
 import { getInitials } from '../utils';
 import { cn } from '@/lib/utils';
 import DisableWidgetDialog from './DisableWidgetDialog';
-import ConfirmDialog from './ConfirmDialog';
 
 interface DynamicWidgetInfo {
   id: string;
@@ -49,7 +48,7 @@ interface AppSidebarProps {
   onResetLayout?: () => void;
   onAddRss?: () => void;
   onAddTodo?: () => void;
-  onDeleteTodoList?: (id: string) => Promise<void>;
+  onRequestDeleteList?: (target: { id: string; name: string }) => void;
   rssWidgets?: DynamicWidgetInfo[];
   todoWidgets?: DynamicWidgetInfo[];
   isWidgetEnabled?: (id: string) => boolean;
@@ -82,7 +81,7 @@ export default function AppSidebar({
   onResetLayout,
   onAddRss,
   onAddTodo,
-  onDeleteTodoList,
+  onRequestDeleteList,
   rssWidgets = [],
   todoWidgets = [],
   isWidgetEnabled,
@@ -91,7 +90,6 @@ export default function AppSidebar({
 }: AppSidebarProps) {
   const { user, logout } = useAuth();
   const [disableTarget, setDisableTarget] = useState<{ id: string; name: string } | null>(null);
-  const [deleteListTarget, setDeleteListTarget] = useState<{ id: string; name: string } | null>(null);
 
   const handleToggle = (widgetId: string, widgetName: string) => {
     const enabled = isWidgetEnabled ? isWidgetEnabled(widgetId) : true;
@@ -158,7 +156,7 @@ export default function AppSidebar({
                   key={t.id}
                   label={t.name}
                   dotColor="var(--ink-3)"
-                  onDelete={onDeleteTodoList ? () => setDeleteListTarget({ id: t.id, name: t.name }) : undefined}
+                  onDelete={onRequestDeleteList ? () => onRequestDeleteList({ id: t.id, name: t.name }) : undefined}
                   deleteLabel="Usuń listę"
                 />
               ))
@@ -242,20 +240,6 @@ export default function AppSidebar({
           setDisableTarget(null);
         }}
         onCancel={() => setDisableTarget(null)}
-      />
-
-      <ConfirmDialog
-        open={deleteListTarget !== null}
-        title="Usuń listę zadań"
-        description={`Lista "${deleteListTarget?.name ?? ''}" wraz z wszystkimi zadaniami zostanie trwale usunięta z Google Tasks.`}
-        confirmLabel="Usuń listę"
-        onConfirm={async () => {
-          if (deleteListTarget && onDeleteTodoList) {
-            await onDeleteTodoList(deleteListTarget.id);
-          }
-          setDeleteListTarget(null);
-        }}
-        onCancel={() => setDeleteListTarget(null)}
       />
     </>
   );
