@@ -74,7 +74,8 @@ export default function Calendar({ tick }: { tick: number }) {
         setLoading(false);
       })
       .catch((e: unknown) => {
-        if (e instanceof ApiError && e.status === 401) {
+        // 403 = brak tokenow Google Calendar; 401 (wygasla sesja) idzie w galaz error
+        if (e instanceof ApiError && e.status === 403) {
           setNoKey(true);
         } else {
           console.error('Calendar fetch error:', e);

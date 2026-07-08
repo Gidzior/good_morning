@@ -136,23 +136,8 @@ function rateForDate(series: { byDate: Map<string, number>; latest: number }, da
   return series.latest;
 }
 
-/** Shared handler for cached history endpoints — DRY wrapper for try/cached/res.json/catch */
-async function cachedHistoryHandler(
-  res: express.Response,
-  cacheKey: string,
-  fetcher: () => Promise<ChartPoint[]>,
-): Promise<void> {
-  try {
-    const points = await cached(cacheKey, THIRTY_MIN, fetcher);
-    res.json(points);
-  } catch (e: unknown) {
-    console.error(`History error [${cacheKey}]:`, errMsg(e));
-    res.status(502).json({ error: 'History data unavailable' });
-  }
-}
-
-/** Shared handler for cached list endpoints — try/cached/res.json/catch with per-endpoint error message */
-async function cachedListHandler<T>(
+/** Shared handler for cached proxy endpoints — try/cached/res.json/catch with per-endpoint error message */
+async function cachedJsonHandler<T>(
   res: express.Response,
   cacheKey: string,
   ttl: number,
@@ -162,7 +147,7 @@ async function cachedListHandler<T>(
   try {
     res.json(await cached(cacheKey, ttl, fetcher));
   } catch (e: unknown) {
-    console.error(`List error [${cacheKey}]:`, errMsg(e));
+    console.error(`Fetch error [${cacheKey}]:`, errMsg(e));
     res.status(502).json({ error: errorMessage });
   }
 }
@@ -200,7 +185,7 @@ type ResolvedTasklist = { tasks: ReturnType<typeof google.tasks>; tasklistId: st
  * Wspolna preambula mutacji Google Tasks: lookup listy + oauth + klient.
  * Pisze 4xx do res i zwraca null gdy brak listy lub tokenow.
  */
-async function resolveTasklist(req: Request, res: express.Response): Promise<ResolvedTasklist | null> {
+function resolveTasklist(req: Request, res: express.Response): ResolvedTasklist | null {
   const lists = getTodoLists(userId(req));
   const list = lists.find(l => l.id === req.params.id);
   if (!list?.google_tasklist_id) {
@@ -209,7 +194,7 @@ async function resolveTasklist(req: Request, res: express.Response): Promise<Res
   }
   const oauth2Client = getOAuth2ClientForUser(userId(req));
   if (!oauth2Client) {
-    res.status(401).json({ error: 'Google not connected' });
+    res.status(403).json({ error: 'Google not connected' });
     return null;
   }
   return { tasks: google.tasks({ version: 'v1', auth: oauth2Client }), tasklistId: list.google_tasklist_id };
@@ -385,7 +370,7 @@ app.get('/api/currencies', async (_req, res) => {
 app.get('/api/currencies/history/:code', async (req, res) => {
   const { code } = req.params;
   const days = Math.min(Number(req.query.days) || 30, 365);
-  await cachedHistoryHandler(res, `nbp-${code}-${days}`, async () => {
+  await cachedJsonHandler<ChartPoint[]>(res, `nbp-${code}-${days}`, THIRTY_MIN, 'History data unavailable', async () => {
     const url = `https://api.nbp.pl/api/exchangerates/rates/A/${code}/last/${days}/?format=json`;
     const data = await fetch(url).then(json) as { rates: { effectiveDate: string; mid: number }[] };
     return (data.rates || []).map(r => ({ date: r.effectiveDate, value: r.mid }));
@@ -413,7 +398,7 @@ app.get('/api/stock/:symbol/history', async (req, res) => {
   const daysParam = Math.min(Number(req.query.days) || 30, 365);
   const rangeMap: Record<number, string> = { 7: '5d', 30: '1mo', 90: '3mo', 365: '1y' };
   const range = rangeMap[daysParam] || '1mo';
-  await cachedHistoryHandler(res, `stock-${symbol}-${range}`, async () => {
+  await cachedJsonHandler<ChartPoint[]>(res, `stock-${symbol}-${range}`, THIRTY_MIN, 'History data unavailable', async () => {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d`;
     const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
     const data = await r.json() as {
@@ -456,7 +441,7 @@ registerUserListCrud({
 
 // --- API: Available Binance USDT spot pairs ---
 app.get('/api/cryptos/available', async (_req, res) => {
-  await cachedListHandler(res, 'binance-usdt-pairs', THIRTY_MIN, 'Binance API unavailable', async () => {
+  await cachedJsonHandler(res, 'binance-usdt-pairs', THIRTY_MIN, 'Binance API unavailable', async () => {
     const r = await fetch('https://api.binance.com/api/v3/exchangeInfo');
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const j = await r.json() as { symbols: { symbol: string; baseAsset: string; quoteAsset: string; status: string; isSpotTradingAllowed: boolean }[] };
@@ -495,7 +480,7 @@ app.get('/api/crypto/:symbol', async (req, res) => {
 app.get('/api/crypto/:symbol/history', async (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
   const days = Math.min(Number(req.query.days) || 30, 365);
-  await cachedHistoryHandler(res, `crypto-${symbol}-${days}`, async () => {
+  await cachedJsonHandler<ChartPoint[]>(res, `crypto-${symbol}-${days}`, THIRTY_MIN, 'History data unavailable', async () => {
     const [klines, series] = await Promise.all([
       fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}USDT&interval=1d&limit=${days}`).then(json) as Promise<[number, string, string, string, string][]>,
       getUsdPlnSeries(days),
@@ -528,7 +513,7 @@ registerUserListCrud({
 
 // --- API: Available NBP currencies ---
 app.get('/api/currencies/available', async (_req, res) => {
-  await cachedListHandler(res, 'nbp-currencies', THIRTY_MIN, 'NBP API unavailable', async () => {
+  await cachedJsonHandler(res, 'nbp-currencies', THIRTY_MIN, 'NBP API unavailable', async () => {
     const r = await fetch('https://api.nbp.pl/api/exchangerates/tables/A/?format=json');
     const j = await r.json() as { rates: { code: string; currency: string }[] }[];
     return (j[0]?.rates || []).map(r => ({ code: r.code, name: r.currency }));
@@ -668,7 +653,7 @@ app.get('/api/calendars', async (req, res) => {
 
   const oauth2Client = getOAuth2ClientForUser(uid);
   if (!oauth2Client) {
-    return res.status(401).json({ error: 'Kalendarz nie polaczony. Przejdz do ustawien konta.' });
+    return res.status(403).json({ error: 'Kalendarz nie polaczony. Przejdz do ustawien konta.' });
   }
 
   try {
@@ -702,7 +687,7 @@ app.get('/api/calendar', async (req, res) => {
 
   const oauth2Client = getOAuth2ClientForUser(uid);
   if (!oauth2Client) {
-    return res.status(401).json({ error: 'Kalendarz nie polaczony. Przejdz do ustawien konta.' });
+    return res.status(403).json({ error: 'Kalendarz nie polaczony. Przejdz do ustawien konta.' });
   }
 
   try {
@@ -839,7 +824,7 @@ app.get('/api/todo-lists/:id/tasks', async (req, res) => {
 app.post('/api/todo-lists/:id/tasks', async (req, res) => {
   const { title } = req.body as { title: string };
   if (!title?.trim()) return res.status(400).json({ error: 'title required' });
-  const ctx = await resolveTasklist(req, res);
+  const ctx = resolveTasklist(req, res);
   if (!ctx) return;
 
   try {
@@ -858,7 +843,7 @@ app.patch('/api/todo-lists/:id/tasks/:taskId', async (req, res) => {
   if (!status || !['needsAction', 'completed'].includes(status)) {
     return res.status(400).json({ error: 'status must be needsAction or completed' });
   }
-  const ctx = await resolveTasklist(req, res);
+  const ctx = resolveTasklist(req, res);
   if (!ctx) return;
 
   try {
@@ -878,7 +863,7 @@ app.patch('/api/todo-lists/:id/tasks/:taskId', async (req, res) => {
 
 app.post('/api/todo-lists/:id/tasks/:taskId/move', async (req, res) => {
   const { previousTaskId } = req.body as { previousTaskId: string | null };
-  const ctx = await resolveTasklist(req, res);
+  const ctx = resolveTasklist(req, res);
   if (!ctx) return;
 
   try {
@@ -894,7 +879,7 @@ app.post('/api/todo-lists/:id/tasks/:taskId/move', async (req, res) => {
 });
 
 app.delete('/api/todo-lists/:id/tasks/:taskId', async (req, res) => {
-  const ctx = await resolveTasklist(req, res);
+  const ctx = resolveTasklist(req, res);
   if (!ctx) return;
 
   try {
