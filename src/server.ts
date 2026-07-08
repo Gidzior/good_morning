@@ -178,6 +178,20 @@ function taskError(res: express.Response, label: string, e: unknown): void {
   res.status(502).json({ error: `Blad Google Tasks: ${errMsg(e)}` });
 }
 
+type CalendarInfo = { id: string; summary: string; primary: boolean; backgroundColor: string };
+
+/** Pobiera liste kalendarzy uzytkownika — wspolne dla /api/calendars i /api/calendar */
+async function fetchCalendarList(auth: NonNullable<ReturnType<typeof getOAuth2ClientForUser>>): Promise<CalendarInfo[]> {
+  const cal = google.calendar({ version: 'v3', auth });
+  const response = await cal.calendarList.list();
+  return (response.data.items || []).map(c => ({
+    id: c.id || '',
+    summary: c.summary || '',
+    primary: c.primary || false,
+    backgroundColor: c.backgroundColor || '#4285f4',
+  }));
+}
+
 // Serve built React app
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
 
@@ -620,19 +634,11 @@ app.get('/api/calendars', async (req, res) => {
 
   const oauth2Client = getOAuth2ClientForUser(uid);
   if (!oauth2Client) {
-    return res.json({ calendars: [], prefs: [] });
+    return res.status(401).json({ error: 'Kalendarz nie polaczony. Przejdz do ustawien konta.' });
   }
 
   try {
-    const cal = google.calendar({ version: 'v3', auth: oauth2Client });
-    const response = await cal.calendarList.list();
-    const calendars = (response.data.items || []).map(c => ({
-      id: c.id || '',
-      summary: c.summary || '',
-      primary: c.primary || false,
-      backgroundColor: c.backgroundColor || '#4285f4',
-    }));
-
+    const calendars = await fetchCalendarList(oauth2Client);
     const prefs = getCalendarPrefs(uid);
     res.json({ calendars, prefs });
   } catch (e: unknown) {
@@ -662,7 +668,7 @@ app.get('/api/calendar', async (req, res) => {
 
   const oauth2Client = getOAuth2ClientForUser(uid);
   if (!oauth2Client) {
-    return res.json({ error: 'Kalendarz nie polaczony. Przejdz do ustawien konta.' });
+    return res.status(401).json({ error: 'Kalendarz nie polaczony. Przejdz do ustawien konta.' });
   }
 
   try {
@@ -675,11 +681,8 @@ app.get('/api/calendar', async (req, res) => {
       : ['primary'];
 
     // Get calendar colors
-    const calList = await cal.calendarList.list();
-    const colorMap = new Map<string, string>();
-    for (const c of calList.data.items || []) {
-      if (c.id) colorMap.set(c.id, c.backgroundColor || '#4285f4');
-    }
+    const calList = await fetchCalendarList(oauth2Client);
+    const colorMap = new Map<string, string>(calList.map(c => [c.id, c.backgroundColor]));
 
     // Fetch events from all enabled calendars in parallel
     const allEvents = await Promise.all(
@@ -713,7 +716,7 @@ app.get('/api/calendar', async (req, res) => {
   } catch (e: unknown) {
     console.error('Calendar API error:', e);
     const msg = errMsg(e);
-    res.json({ error: `Blad kalendarza: ${msg}` });
+    res.status(502).json({ error: `Blad kalendarza: ${msg}` });
   }
 });
 

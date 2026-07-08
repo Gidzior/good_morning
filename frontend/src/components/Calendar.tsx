@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { formatTime, formatDayHeader } from '../utils';
+import { apiFetch, ApiError } from '@/lib/api';
 import type { CalendarEvent } from '../types';
 import Loading, { ErrorMsg } from './Loading';
 import Card from './DashboardCard';
@@ -47,20 +48,8 @@ export default function Calendar({ tick }: { tick: number }) {
     const end = new Date(now);
     end.setDate(end.getDate() + 3);
 
-    fetch(`/api/calendar?timeMin=${now.toISOString()}&timeMax=${end.toISOString()}`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    apiFetch<{ items?: CalendarEvent[] }>(`/api/calendar?timeMin=${now.toISOString()}&timeMax=${end.toISOString()}`)
       .then(data => {
-        if (data.error) {
-          const msg = data.error as string;
-          if (msg.includes('ustawien')) {
-            setNoKey(true);
-          } else {
-            throw new Error(msg);
-          }
-          setLoading(false);
-          return;
-        }
-
         const events: CalendarEvent[] = data.items || [];
         const grouped: DayGroup[] = [];
 
@@ -84,7 +73,15 @@ export default function Calendar({ tick }: { tick: number }) {
         setTodayCount(grouped[0] ? grouped[0].allDay.length + grouped[0].timed.length : 0);
         setLoading(false);
       })
-      .catch(e => { console.error('Calendar fetch error:', e); setError(e instanceof Error ? e.message : 'Unknown error'); setLoading(false); });
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 401) {
+          setNoKey(true);
+        } else {
+          console.error('Calendar fetch error:', e);
+          setError(e instanceof Error ? e.message : 'Unknown error');
+        }
+        setLoading(false);
+      });
   }, [tick]);
 
   const countLabel = !loading && !error && !noKey
