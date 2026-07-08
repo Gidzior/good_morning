@@ -3,6 +3,7 @@ import Card from './DashboardCard';
 import Loading from './Loading';
 import { CheckIcon, PlusIcon, XIcon, Trash2Icon, ListTodoIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { apiFetch, ApiError } from '@/lib/api';
 
 interface GoogleTask {
   id: string;
@@ -58,18 +59,17 @@ export default function TodoList({ lists, tick, onRequestDeleteList }: TodoListP
     if (!apiBase) { setTasks([]); setLoading(false); return; }
     setLoading(true);
     try {
-      const r = await fetch(apiBase);
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data = await r.json() as { items?: GoogleTask[]; error?: string };
-      if (data.error) {
-        setErrorMsg(data.error);
-        setTasks([]);
-      } else {
-        setTasks(sortTasks(data.items ?? []));
-        setErrorMsg('');
-      }
+      const data = await apiFetch<{ items?: GoogleTask[] }>(apiBase);
+      setTasks(sortTasks(data.items ?? []));
+      setErrorMsg('');
     } catch (err) {
-      console.error('Failed to load tasks:', err);
+      if (err instanceof ApiError && err.status === 403) {
+        setErrorMsg('Google Tasks niepołączone — przejdź do ustawień konta.');
+      } else {
+        console.error('Failed to load tasks:', err);
+        setErrorMsg('Nie udało się pobrać zadań');
+      }
+      setTasks([]);
     } finally {
       setLoading(false);
     }

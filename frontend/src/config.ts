@@ -7,4 +7,5 @@ export const PERIODS = [
   { label: '1R', days: 365 },
 ] as const;
 
-export const CHART_CACHE_TTL = 30 * 60 * 1000;
+// 5 min — backend cache'uje dane wykresow przez 30 min (server.ts THIRTY_MIN); frontendowy TTL musi byc krotszy, inaczej worst-case staleness ~60 min
+export const CHART_CACHE_TTL = 5 * 60 * 1000;

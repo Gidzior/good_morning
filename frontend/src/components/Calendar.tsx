@@ -71,6 +71,8 @@ export default function Calendar({ tick }: { tick: number }) {
 
         setDays(grouped);
         setTodayCount(grouped[0] ? grouped[0].allDay.length + grouped[0].timed.length : 0);
+        setNoKey(false);
+        setError('');
         setLoading(false);
       })
       .catch((e: unknown) => {
