@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend deps
+        run: npm ci
+
+      - name: Install frontend deps
+        run: npm ci
+        working-directory: frontend
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (tsc backend + tsc -b + vite)
+        run: npm run build

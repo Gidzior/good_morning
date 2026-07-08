@@ -108,6 +108,12 @@ Przed commitem: `lint && build` musza przejsc.
 - Remote: git@github.com:Gidzior/good_morning.git (SSH)
 - Always commit secrets-free; verify .gitignore before pushing
 
+## Dev cycle (Dev AI Agents)
+- Audyt/refactor: `/pathfinder` → `/make-plan` (handoff z PATHFINDER-*/04) → `/do` → code review → merge
+- Code review: subagent `code-reviewer` (.claude/agents/code-reviewer.md) na diffie main...HEAD, przed commitem/merge
+- CI: GitHub Actions (.github/workflows/ci.yml) — lint + build na push do main i na PR
+- Poczatek sesji: `/mem-search` gdy temat mogl byc juz rozwiazany wczesniej
+
 ## Production Deployment Plan (TODO)
 
 > Hosting: **publiczny VPS** (Hetzner CPX11 lub podobny) — Google OAuth wymaga publicznego redirect_uri.
