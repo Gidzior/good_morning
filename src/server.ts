@@ -25,6 +25,12 @@ const rssParser = new RSSParser();
 
 app.use(cookieParser());
 app.use(express.json());
+// Express 5: req.body jest undefined gdy brak JSON body (v4 dawal {}) —
+// przywracamy {}, zeby destrukturyzacje w handlerach trafialy w walidacje 400, nie TypeError
+app.use((req, _res, next) => {
+  req.body ??= {};
+  next();
+});
 
 // --- Rate limiting ---
 const authLimiter = rateLimit({
@@ -906,8 +912,8 @@ app.put('/api/layout', (req, res) => {
   res.json({ ok: true });
 });
 
-// SPA fallback
-app.get('*', (_req, res) => {
+// SPA fallback (Express 5 / path-to-regexp 8: nazwany wildcard zamiast '*')
+app.get('/{*splat}', (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'frontend', 'dist', 'index.html'));
 });
 
