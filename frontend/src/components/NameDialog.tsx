@@ -10,11 +10,12 @@ interface NameDialogProps {
   placeholder: string;
   submitting: boolean;
   error: string | null;
+  onNameChange?: () => void;
   onSubmit: (name: string) => void;
   onClose: () => void;
 }
 
-export function NameDialog({ open, title, placeholder, submitting, error, onSubmit, onClose }: NameDialogProps) {
+export function NameDialog({ open, title, placeholder, submitting, error, onNameChange, onSubmit, onClose }: NameDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
       <DialogContent className="sm:max-w-sm">
@@ -25,6 +26,7 @@ export function NameDialog({ open, title, placeholder, submitting, error, onSubm
           placeholder={placeholder}
           submitting={submitting}
           error={error}
+          onNameChange={onNameChange}
           onSubmit={onSubmit}
           onClose={onClose}
         />
@@ -35,7 +37,7 @@ export function NameDialog({ open, title, placeholder, submitting, error, onSubm
 
 // Stan inputu zyje w komponencie wewnetrznym — DialogContent (Base UI Portal)
 // odmontowuje sie przy zamknieciu, wiec nazwa resetuje sie sama, bez setState w efekcie.
-function NameForm({ placeholder, submitting, error, onSubmit, onClose }: Omit<NameDialogProps, 'open' | 'title'>) {
+function NameForm({ placeholder, submitting, error, onNameChange, onSubmit, onClose }: Omit<NameDialogProps, 'open' | 'title'>) {
   const [name, setName] = useState('');
 
   const submit = () => {
@@ -48,7 +50,10 @@ function NameForm({ placeholder, submitting, error, onSubmit, onClose }: Omit<Na
       <Input
         placeholder={placeholder}
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={(e) => {
+          setName(e.target.value);
+          onNameChange?.();
+        }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') submit();
         }}

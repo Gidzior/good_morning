@@ -262,6 +262,7 @@ function Dashboard() {
           placeholder="Nazwa widgetu"
           submitting={dialogSubmitting}
           error={dialogError}
+          onNameChange={() => setDialogError(null)}
           onSubmit={(name) => void submitRssDialog(name)}
           onClose={() => setRssDialogOpen(false)}
         />
@@ -271,6 +272,7 @@ function Dashboard() {
           placeholder="Nazwa listy"
           submitting={dialogSubmitting}
           error={dialogError}
+          onNameChange={() => setDialogError(null)}
           onSubmit={(name) => void submitTodoDialog(name)}
           onClose={() => setTodoDialogOpen(false)}
         />
