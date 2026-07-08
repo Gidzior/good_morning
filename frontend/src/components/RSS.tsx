@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { timeAgo } from '../utils';
 import type { RSSItem } from '../types';
 import Card from './DashboardCard';
-import Loading from './Loading';
+import Loading, { ErrorMsg } from './Loading';
 import { Input } from '@/components/ui/input';
 import { apiFetch } from '@/lib/api';
 import SettingsModal from './SettingsModal';
@@ -39,6 +39,7 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
   const [newCount, setNewCount] = useState(3);
   const [adding, setAdding] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     if (feeds.length === 0) { setArticles([]); setLoading(false); return; }
@@ -46,9 +47,7 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
     Promise.all(
       feeds.map(async (feed) => {
         try {
-          const res = await fetch(`/api/rss?url=${encodeURIComponent(feed.url)}`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const data = await res.json();
+          const data = await apiFetch<{ items?: RSSItem[] }>(`/api/rss?url=${encodeURIComponent(feed.url)}`);
           return (data.items || [])
             .slice(0, feed.articles_count)
             .map((item: RSSItem) => ({
@@ -65,6 +64,11 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
     ).then(results => {
       const all = results.flat().sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
       setArticles(all);
+      setLoadError(false);
+      setLoading(false);
+    }).catch((err: unknown) => {
+      console.error('Failed to load RSS articles:', err);
+      setLoadError(true);
       setLoading(false);
     });
   }, [tick, feeds]);
@@ -104,6 +108,8 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
     <Card icon={<RssIcon />} title={widgetName} onSettings={() => setShowSettings(true)}>
       {loading ? (
         <Loading text="Ładowanie RSS..." />
+      ) : loadError ? (
+        <ErrorMsg message="Nie udało się załadować danych — odśwież stronę" />
       ) : feeds.length === 0 ? (
         <div className="text-sm text-muted-foreground py-4 text-center">
           Brak kanalow RSS. Kliknij <button onClick={() => setShowSettings(true)} className="text-primary underline">⚙ ustawienia</button> zeby dodac.
