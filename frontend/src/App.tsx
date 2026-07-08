@@ -86,6 +86,8 @@ function Dashboard() {
   const [dialogError, setDialogError] = useState<string | null>(null);
   // Blad mutacji spoza dialogow dodawania (np. usuwanie listy zadan) — czyszczony przy nowej probie
   const [actionError, setActionError] = useState<string | null>(null);
+  // Guard in-flight dla dialogow dodawania — naraz otwarty jest jeden, wspolny stan wystarcza
+  const [dialogSubmitting, setDialogSubmitting] = useState(false);
 
   const addRssWidget = useCallback(async (name: string): Promise<boolean> => {
     if (!name.trim()) return false;
@@ -135,16 +137,26 @@ function Dashboard() {
   }, [loadTodoLists]);
 
   const submitRssDialog = useCallback(async () => {
-    if (!rssName.trim()) return;
-    const ok = await addRssWidget(rssName);
-    if (ok) setRssDialogOpen(false);
-  }, [rssName, addRssWidget]);
+    if (dialogSubmitting || !rssName.trim()) return;
+    setDialogSubmitting(true);
+    try {
+      const ok = await addRssWidget(rssName);
+      if (ok) setRssDialogOpen(false);
+    } finally {
+      setDialogSubmitting(false);
+    }
+  }, [dialogSubmitting, rssName, addRssWidget]);
 
   const submitTodoDialog = useCallback(async () => {
-    if (!todoName.trim()) return;
-    const ok = await addTodoList(todoName);
-    if (ok) setTodoDialogOpen(false);
-  }, [todoName, addTodoList]);
+    if (dialogSubmitting || !todoName.trim()) return;
+    setDialogSubmitting(true);
+    try {
+      const ok = await addTodoList(todoName);
+      if (ok) setTodoDialogOpen(false);
+    } finally {
+      setDialogSubmitting(false);
+    }
+  }, [dialogSubmitting, todoName, addTodoList]);
 
   const handleDisableWidget = useCallback(async (widgetId: string, deleteData: boolean) => {
     // Save widget's current layout before disabling
@@ -263,7 +275,7 @@ function Dashboard() {
             <DialogFooter>
               <Button variant="ghost" onClick={() => setRssDialogOpen(false)}>Anuluj</Button>
               <Button
-                disabled={!rssName.trim()}
+                disabled={!rssName.trim() || dialogSubmitting}
                 onClick={() => void submitRssDialog()}
               >
                 Dodaj
@@ -289,7 +301,7 @@ function Dashboard() {
             <DialogFooter>
               <Button variant="ghost" onClick={() => setTodoDialogOpen(false)}>Anuluj</Button>
               <Button
-                disabled={!todoName.trim()}
+                disabled={!todoName.trim() || dialogSubmitting}
                 onClick={() => void submitTodoDialog()}
               >
                 Dodaj

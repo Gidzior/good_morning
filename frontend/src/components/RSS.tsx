@@ -42,13 +42,14 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    if (feeds.length === 0) { setArticles([]); setLoading(false); return; }
+    if (feeds.length === 0) { setArticles([]); setLoadError(false); setLoading(false); return; }
     setLoading(true);
+    type FeedResult = { ok: true; articles: Article[] } | { ok: false };
     Promise.all(
-      feeds.map(async (feed) => {
+      feeds.map(async (feed): Promise<FeedResult> => {
         try {
           const data = await apiFetch<{ items?: RSSItem[] }>(`/api/rss?url=${encodeURIComponent(feed.url)}`);
-          return (data.items || [])
+          const articles = (data.items || [])
             .slice(0, feed.articles_count)
             .map((item: RSSItem) => ({
               title: item.title || '',
@@ -56,17 +57,22 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
               pubDate: item.pubDate || item.isoDate || '',
               source: feed.name,
             }));
+          return { ok: true, articles };
         } catch (err) {
           console.error(`Failed to fetch RSS feed ${feed.name}:`, err);
-          return [];
+          return { ok: false };
         }
       })
     ).then(results => {
-      const all = results.flat().sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+      const all = results
+        .flatMap(r => (r.ok ? r.articles : []))
+        .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
       setArticles(all);
-      setLoadError(false);
+      // feeds.length > 0 (early return wyzej) — wszystkie feedy padly to glowny tryb awarii
+      setLoadError(results.every(r => !r.ok));
       setLoading(false);
     }).catch((err: unknown) => {
+      // defense-in-depth — per-feed catch nie powinien tu dopuscic
       console.error('Failed to load RSS articles:', err);
       setLoadError(true);
       setLoading(false);
@@ -108,18 +114,19 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
     <Card icon={<RssIcon />} title={widgetName} onSettings={() => setShowSettings(true)}>
       {loading ? (
         <Loading text="Ładowanie RSS..." />
-      ) : loadError ? (
-        <ErrorMsg message="Nie udało się załadować danych — odśwież stronę" />
       ) : feeds.length === 0 ? (
         <div className="text-sm text-muted-foreground py-4 text-center">
           Brak kanalow RSS. Kliknij <button onClick={() => setShowSettings(true)} className="text-primary underline">⚙ ustawienia</button> zeby dodac.
         </div>
+      ) : loadError ? (
+        <ErrorMsg message="Nie udało się załadować danych — odśwież stronę" />
       ) : articles.length === 0 ? (
         <div className="text-sm text-muted-foreground">Brak artykulow</div>
       ) : (
         <div className="space-y-3">
-          {articles.map(a => (
-            <div key={`${a.source}-${a.link}`} className="border-b border-border pb-2 last:border-0">
+          {articles.map((a, i) => (
+            // indeks jako tiebreaker dla duplikatow link='#'; lista wymieniana atomowo per fetch
+            <div key={`${a.source}-${a.link}-${i}`} className="border-b border-border pb-2 last:border-0">
               <a href={a.link} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-foreground hover:text-primary transition-colors line-clamp-2">
                 {a.title}
               </a>

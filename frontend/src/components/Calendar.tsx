@@ -106,7 +106,8 @@ export default function Calendar({ tick }: { tick: number }) {
           <div className="cal-day" key={day.label}>
             <div className="cal-day-header">{day.label}</div>
             {day.allDay.map(ev => (
-              <div className="cal-allday-pill" key={ev.id}>
+              // to samo wydarzenie w dwoch kalendarzach ma to samo Google id — kolor rozroznia
+              <div className="cal-allday-pill" key={`${ev.id}-${ev.calendarColor}`}>
                 {ev.summary || '(bez tytułu)'}
               </div>
             ))}
@@ -127,7 +128,7 @@ export default function Calendar({ tick }: { tick: number }) {
                 return (
                   <div
                     className={`cal-event cal-event-${status}`}
-                    key={ev.id}
+                    key={`${ev.id}-${ev.calendarColor}`}
                     style={style}
                   >
                     <span className="time">{time}</span>
