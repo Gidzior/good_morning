@@ -116,6 +116,8 @@ export default function TickerWidget({ config, tick }: { config: TickerConfig; t
   useEffect(() => {
     if (items === null || !items.length) return;
     const key = `${items.map(i => i.id).join(',')}|${tick}`;
+    // stale guard: batch dla nieaktualnej listy nie moze nadpisac swiezszego wyniku
+    let stale = false;
     Promise.all(
       items.map(async (item): Promise<PricedItem> => {
         try {
@@ -126,7 +128,8 @@ export default function TickerWidget({ config, tick }: { config: TickerConfig; t
           return { ...item, price: { value: 0, change: 0, error: true } };
         }
       })
-    ).then(r => setPriced({ key, results: r }));
+    ).then(r => { if (!stale) setPriced({ key, results: r }); });
+    return () => { stale = true; };
   }, [items, tick, config]);
 
   // loading derywowane: spinner podczas ladowania listy oraz kazdego (re)fetchu cen
