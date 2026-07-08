@@ -252,11 +252,11 @@ export default function Weather({ tick }: { tick: number }) {
 
         {hourly.length > 0 && (
           <div className="grid grid-cols-8 gap-1 border-y border-[color:var(--line)] py-2.5">
-            {hourly.map((h, i) => {
+            {hourly.map(h => {
               const HourIcon = iconForOwm(h.weather[0].icon);
               const hour = new Date(h.dt * 1000).getHours();
               return (
-                <div key={i} className="flex flex-col items-center gap-1 py-1">
+                <div key={h.dt} className="flex flex-col items-center gap-1 py-1">
                   <span className="font-mono text-[10.5px] text-[color:var(--ink-3)]">
                     {String(hour).padStart(2, '0')}
                   </span>
@@ -272,7 +272,7 @@ export default function Weather({ tick }: { tick: number }) {
 
         {daily.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            {daily.map((d, i) => {
+            {daily.map(d => {
               const DayIcon = iconForOwm(d.icon);
               const lo = Math.round(d.lo);
               const hi = Math.round(d.hi);
@@ -280,7 +280,7 @@ export default function Weather({ tick }: { tick: number }) {
               const width = Math.max(4, Math.min(100 - left, ((hi - lo) / 45) * 100));
               return (
                 <div
-                  key={i}
+                  key={d.date.getTime()}
                   className="grid items-center gap-2.5 text-xs"
                   style={{ gridTemplateColumns: '28px 22px 1fr 70px' }}
                 >
@@ -329,11 +329,11 @@ export default function Weather({ tick }: { tick: number }) {
         {searching && <p className="mb-2 text-xs text-muted-foreground">Szukam...</p>}
         {searchResults.length > 0 && (
           <div className="mb-4 max-h-40 overflow-y-auto rounded-lg border">
-            {searchResults.map((c, i) => {
+            {searchResults.map(c => {
               const exists = cities.some(x => x.lat === c.lat && x.lon === c.lon);
               return (
                 <button
-                  key={i}
+                  key={`${c.lat},${c.lon}`}
                   onClick={() => !exists && addCity(c)}
                   disabled={exists}
                   className={cn(

@@ -118,8 +118,8 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
         <div className="text-sm text-muted-foreground">Brak artykulow</div>
       ) : (
         <div className="space-y-3">
-          {articles.map((a, i) => (
-            <div key={i} className="border-b border-border pb-2 last:border-0">
+          {articles.map(a => (
+            <div key={`${a.source}-${a.link}`} className="border-b border-border pb-2 last:border-0">
               <a href={a.link} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-foreground hover:text-primary transition-colors line-clamp-2">
                 {a.title}
               </a>
