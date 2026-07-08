@@ -53,15 +53,15 @@ function iconForOwm(code: string): LucideIcon {
 const PL_WEEKDAY_SHORT = ['Nd', 'Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb'];
 
 export default function Weather({ tick }: { tick: number }) {
-  const [data, setData] = useState<WeatherResponse | null>(null);
-  const [error, setError] = useState('');
+  const [result, setResult] = useState<{ key: string; data: WeatherResponse } | null>(null);
+  const [fetchError, setFetchError] = useState<{ key: string; message: string } | null>(null);
   const [cities, setCities] = useState<CityConfig[]>([]);
   const [cityIdx, setCityIdx] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
-  const debounce = useRef<ReturnType<typeof setTimeout>>();
+  const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const loadCities = useCallback(() => {
     fetch('/api/user-cities')
@@ -73,16 +73,26 @@ export default function Weather({ tick }: { tick: number }) {
   useEffect(() => { loadCities(); }, [loadCities]);
 
   const selected = cities[cityIdx] || null;
+  const lat = selected?.lat;
+  const lon = selected?.lon;
+  // Key identifying the current fetch target; stale responses (other city / older
+  // tick) are ignored by derivation below instead of resetting state in the effect.
+  const fetchKey = selected ? `${lat},${lon},${tick}` : '';
 
   useEffect(() => {
-    if (!selected) { setData(null); return; }
-    setData(null);
-    setError('');
-    fetch(`/api/weather?lat=${selected.lat}&lon=${selected.lon}`)
+    if (lat === undefined || lon === undefined) return;
+    const key = `${lat},${lon},${tick}`;
+    fetch(`/api/weather?lat=${lat}&lon=${lon}`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => { setData(d); setError(''); })
-      .catch(e => { console.error('Weather fetch error:', e); setError(e instanceof Error ? e.message : 'Unknown error'); });
-  }, [tick, selected?.lat, selected?.lon]);
+      .then((d: WeatherResponse) => setResult({ key, data: d }))
+      .catch((e: unknown) => {
+        console.error('Weather fetch error:', e);
+        setFetchError({ key, message: e instanceof Error ? e.message : 'Unknown error' });
+      });
+  }, [tick, lat, lon]);
+
+  const data = result !== null && result.key === fetchKey ? result.data : null;
+  const error = fetchError !== null && fetchError.key === fetchKey ? fetchError.message : '';
 
   const handleSearch = (val: string) => {
     setQuery(val);
@@ -155,7 +165,8 @@ export default function Weather({ tick }: { tick: number }) {
   const cityTabs = cities.length > 1 ? (
     <Select
       value={selected?.name ?? ''}
-      onValueChange={(v: string) => {
+      onValueChange={(v: string | null) => {
+        if (v === null) return;
         const idx = cities.findIndex(c => c.name === v);
         if (idx >= 0) setCityIdx(idx);
       }}

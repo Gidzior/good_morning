@@ -54,8 +54,12 @@ export function useLayout(dynamicWidgetIds: string[] = []) {
   const [editMode, setEditMode] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Scalar key so the effect re-runs only when the widget id set actually changes
+  const widgetIdsKey = dynamicWidgetIds.join(',');
+
   useEffect(() => {
-    const def = buildDefaultLayout(dynamicWidgetIds);
+    const ids = widgetIdsKey === '' ? [] : widgetIdsKey.split(',');
+    const def = buildDefaultLayout(ids);
     const defBp = deriveBreakpointDefaults(def);
     fetch('/api/layout')
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
@@ -84,7 +88,7 @@ export function useLayout(dynamicWidgetIds: string[] = []) {
         setLoaded(true);
       })
       .catch((err) => { console.error('Failed to load layout:', err); setLayouts(defBp); setLoaded(true); });
-  }, [dynamicWidgetIds.join(',')]);
+  }, [widgetIdsKey]);
 
   const saveLayouts = useCallback((newLayouts: BreakpointLayouts) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);

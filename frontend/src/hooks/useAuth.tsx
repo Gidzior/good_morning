@@ -57,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- utrwalony wzorzec projektu: hook useAuth eksportowany obok AuthProvider z jednego pliku
 export function useAuth(): AuthContextValue {
   return useContext(AuthContext);
 }

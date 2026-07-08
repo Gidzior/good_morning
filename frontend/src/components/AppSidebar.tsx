@@ -285,16 +285,18 @@ function Section({ title, action, children, hideWhenCollapsed }: SectionProps) {
 function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={label}
-          onClick={onClick}
-          className="inline-flex size-[22px] items-center justify-center rounded-md border border-[color:var(--line)] bg-[color:var(--surface)] text-[color:var(--ink-2)] transition-colors hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--accent)]"
-        >
-          <PlusIcon className="size-3.5" />
-        </button>
-      </TooltipTrigger>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            aria-label={label}
+            onClick={onClick}
+            className="inline-flex size-[22px] items-center justify-center rounded-md border border-[color:var(--line)] bg-[color:var(--surface)] text-[color:var(--ink-2)] transition-colors hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--accent)]"
+          >
+            <PlusIcon className="size-3.5" />
+          </button>
+        }
+      />
       <TooltipContent side="right">{label}</TooltipContent>
     </Tooltip>
   );
@@ -343,7 +345,7 @@ function WidgetToggleRow({ meta, enabled, onToggle }: WidgetToggleRowProps) {
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipTrigger render={button} />
       <TooltipContent side="right">{meta.label}</TooltipContent>
     </Tooltip>
   );
@@ -382,16 +384,18 @@ function ItemRow({ label, dotColor, onDelete, deleteLabel = 'Usuń' }: ItemRowPr
       <span className="flex-1 truncate group-data-[collapsible=icon]:hidden">{label}</span>
       {onDelete && (
         <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label={deleteLabel}
-              onClick={onDelete}
-              className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-[color:var(--ink-3)] opacity-0 transition-opacity hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--bad)] group-hover/item:opacity-100 group-data-[collapsible=icon]:hidden"
-            >
-              <Trash2Icon className="size-3.5" />
-            </button>
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                aria-label={deleteLabel}
+                onClick={onDelete}
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-[color:var(--ink-3)] opacity-0 transition-opacity hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--bad)] group-hover/item:opacity-100 group-data-[collapsible=icon]:hidden"
+              >
+                <Trash2Icon className="size-3.5" />
+              </button>
+            }
+          />
           <TooltipContent side="right">{deleteLabel}</TooltipContent>
         </Tooltip>
       )}
@@ -417,20 +421,22 @@ interface FooterIconButtonProps {
 function FooterIconButton({ label, icon: Icon, onClick, active }: FooterIconButtonProps) {
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={label}
-          onClick={onClick}
-          className={`inline-flex size-8 items-center justify-center rounded-lg border border-transparent transition-colors ${
-            active
-              ? 'bg-[color:var(--accent)] text-white'
-              : 'text-[color:var(--ink-2)] hover:border-[color:var(--line)] hover:bg-[color:var(--accent-soft)]'
-          }`}
-        >
-          <Icon className="size-4" />
-        </button>
-      </TooltipTrigger>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            aria-label={label}
+            onClick={onClick}
+            className={`inline-flex size-8 items-center justify-center rounded-lg border border-transparent transition-colors ${
+              active
+                ? 'bg-[color:var(--accent)] text-white'
+                : 'text-[color:var(--ink-2)] hover:border-[color:var(--line)] hover:bg-[color:var(--accent-soft)]'
+            }`}
+          >
+            <Icon className="size-4" />
+          </button>
+        }
+      />
       <TooltipContent side="top">{label}</TooltipContent>
     </Tooltip>
   );
@@ -476,16 +482,18 @@ function UserPill({ name, email, avatarUrl, onAccount, onLogout }: UserPillProps
         </div>
       </button>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            aria-label="Wyloguj"
-            onClick={onLogout}
-            className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-[color:var(--ink-2)] transition-colors hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--accent)] group-data-[collapsible=icon]:hidden"
-          >
-            <LogOutIcon className="size-[15px]" />
-          </button>
-        </TooltipTrigger>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              aria-label="Wyloguj"
+              onClick={onLogout}
+              className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-[color:var(--ink-2)] transition-colors hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--accent)] group-data-[collapsible=icon]:hidden"
+            >
+              <LogOutIcon className="size-[15px]" />
+            </button>
+          }
+        />
         <TooltipContent side="top">Wyloguj</TooltipContent>
       </Tooltip>
     </div>

@@ -4,7 +4,8 @@ export function useRefresh(intervalMs: number) {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [countdown, setCountdown] = useState('');
   const [tick, setTick] = useState(0);
-  const nextRef = useRef(Date.now() + intervalMs);
+  // 0 = uninitialized; deadline is set in the effect (Date.now() is impure during render)
+  const nextRef = useRef(0);
 
   const refresh = useCallback(() => {
     setLastUpdate(new Date());
@@ -13,6 +14,7 @@ export function useRefresh(intervalMs: number) {
   }, [intervalMs]);
 
   useEffect(() => {
+    if (nextRef.current === 0) nextRef.current = Date.now() + intervalMs;
     const id = setInterval(() => {
       const diff = nextRef.current - Date.now();
       if (diff <= 0) {
@@ -24,7 +26,7 @@ export function useRefresh(intervalMs: number) {
       setCountdown(`${h}h ${m}min`);
     }, 60000);
     return () => clearInterval(id);
-  }, [refresh]);
+  }, [refresh, intervalMs]);
 
   return { lastUpdate, countdown, refresh, tick };
 }
