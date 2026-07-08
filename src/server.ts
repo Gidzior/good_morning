@@ -267,31 +267,6 @@ app.get('/api/weather', async (req, res) => {
   }
 });
 
-// --- API: BTC from Binance (USDT) converted to PLN via NBP ---
-app.get('/api/btc', async (_req, res) => {
-  try {
-    const [t, usd] = await Promise.all([
-      fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT').then(json) as Promise<{ lastPrice: string; openPrice: string; highPrice: string; lowPrice: string }>,
-      getUsdPlnRate(),
-    ]);
-    const rate = parseFloat(t.lastPrice) * usd;
-    const previousRate = parseFloat(t.openPrice) * usd;
-    res.json({
-      ticker: {
-        market: { code: 'BTC-PLN', first: { currency: 'BTC' }, second: { currency: 'PLN' } },
-        rate: rate.toFixed(2),
-        previousRate: previousRate.toFixed(2),
-        highestBid: rate.toFixed(2),
-        lowestAsk: rate.toFixed(2),
-        time: Date.now(),
-      },
-    });
-  } catch (e: unknown) {
-    console.error('Binance BTC error:', errMsg(e));
-    res.status(502).json({ error: 'Binance API unavailable' });
-  }
-});
-
 // --- API: Currencies (NBP) ---
 app.get('/api/currencies', async (_req, res) => {
   try {
@@ -330,23 +305,6 @@ app.get('/api/currencies/history/:code', async (req, res) => {
     const url = `https://api.nbp.pl/api/exchangerates/rates/A/${code}/last/${days}/?format=json`;
     const data = await fetch(url).then(json) as { rates: { effectiveDate: string; mid: number }[] };
     return (data.rates || []).map(r => ({ date: r.effectiveDate, value: r.mid }));
-  });
-});
-
-// --- API: Historical BTC/PLN (Binance + NBP, cached 30min) ---
-app.get('/api/btc/history', async (_req, res) => {
-  const days = Math.min(Number(_req.query.days) || 30, 365);
-  await cachedHistoryHandler(res, `btc-history-${days}`, async () => {
-    const [klines, series] = await Promise.all([
-      fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=${days}`).then(json) as Promise<[number, string, string, string, string][]>,
-      getUsdPlnSeries(days),
-    ]);
-    return (klines || []).map(k => {
-      const date = new Date(k[0]).toISOString().slice(0, 10);
-      const close = parseFloat(k[4]);
-      const rate = rateForDate(series, date);
-      return { date, value: Math.round(close * rate * 100) / 100 };
-    });
   });
 });
 

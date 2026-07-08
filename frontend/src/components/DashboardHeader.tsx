@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CakeIcon, GiftIcon, SearchIcon, SettingsIcon, LogOutIcon } from 'lucide-react';
+import { CakeIcon, GiftIcon, SettingsIcon, LogOutIcon } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { formatDate, formatTime, getFirstName, getGreeting, getInitials } from '../utils';
 import { getTodayNameday } from './Nameday';
@@ -75,13 +75,6 @@ export default function DashboardHeader({ now, tick, onAccount }: DashboardHeade
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <button
-          type="button"
-          aria-label="Wyszukaj"
-          className="hidden size-9 items-center justify-center rounded-lg border border-transparent text-[color:var(--ink-2)] transition-colors hover:border-[color:var(--line)] hover:bg-[color:var(--surface)] sm:inline-flex"
-        >
-          <SearchIcon className="size-4" />
-        </button>
         <button
           type="button"
           aria-label="Ustawienia"
