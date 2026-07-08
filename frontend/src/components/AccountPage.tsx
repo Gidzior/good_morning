@@ -36,41 +36,46 @@ export default function AccountPage({ onBack, lastUpdate, countdown, onRefresh }
   const { user, logout, refresh } = useAuth();
   const [calendars, setCalendars] = useState<GoogleCalendar[]>([]);
   const [enabledIds, setEnabledIds] = useState<Set<string>>(new Set());
-  const [loadingCals, setLoadingCals] = useState(false);
+  // loadingCals startuje jako true — spinner do pierwszego fetcha; sekcja i tak
+  // ukryta gdy !has_calendar, a podlaczenie kalendarza przechodzi przez pelny reload (OAuth)
+  const [loadingCals, setLoadingCals] = useState(true);
   const [calsError, setCalsError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const fetchCalendars = useCallback(async () => {
-    setLoadingCals(true);
-    setCalsError(null);
-    try {
-      const data = await apiFetch<{ calendars: GoogleCalendar[]; prefs: CalendarPref[] }>('/api/calendars');
-      setCalendars(data.calendars);
+  // Promise-chain zamiast async/await — setState tylko w callbackach,
+  // zeby wywolanie z efektu nie bylo synchronicznym setState (react-hooks/set-state-in-effect)
+  const fetchCalendars = useCallback((): Promise<void> => {
+    return apiFetch<{ calendars: GoogleCalendar[]; prefs: CalendarPref[] }>('/api/calendars')
+      .then((data) => {
+        setCalendars(data.calendars);
+        setCalsError(null);
 
-      if (data.prefs.length > 0) {
-        setEnabledIds(new Set(data.prefs.filter(p => p.enabled).map(p => p.calendar_id)));
-      } else {
-        // Default: enable primary calendar
-        const primary = data.calendars.find(c => c.primary);
-        setEnabledIds(new Set(primary ? [primary.id] : []));
-      }
-    } catch (err) {
-      console.error('Failed to fetch calendars:', err);
-      if (err instanceof ApiError && err.status === 403) {
-        // has_calendar bylo stale-true, a tokeny Google znikly — odswiez stan auth, sekcja sie schowa
-        await refresh();
-      } else {
-        setCalsError('Nie udało się pobrać listy kalendarzy');
-      }
-    } finally {
-      setLoadingCals(false);
-    }
+        if (data.prefs.length > 0) {
+          setEnabledIds(new Set(data.prefs.filter(p => p.enabled).map(p => p.calendar_id)));
+        } else {
+          // Default: enable primary calendar
+          const primary = data.calendars.find(c => c.primary);
+          setEnabledIds(new Set(primary ? [primary.id] : []));
+        }
+      })
+      .catch(async (err: unknown) => {
+        console.error('Failed to fetch calendars:', err);
+        if (err instanceof ApiError && err.status === 403) {
+          // has_calendar bylo stale-true, a tokeny Google znikly — odswiez stan auth, sekcja sie schowa
+          await refresh();
+        } else {
+          setCalsError('Nie udało się pobrać listy kalendarzy');
+        }
+      })
+      .finally(() => {
+        setLoadingCals(false);
+      });
   }, [refresh]);
 
   useEffect(() => {
     if (user?.has_calendar) {
-      fetchCalendars();
+      void fetchCalendars();
     }
   }, [user?.has_calendar, fetchCalendars]);
 

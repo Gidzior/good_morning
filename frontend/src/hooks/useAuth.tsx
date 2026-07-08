@@ -27,22 +27,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUser = useCallback(async () => {
-    try {
-      const res = await fetch('/auth/me');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json() as { user: AuthUser | null };
-      setUser(data.user);
-    } catch (err) {
-      console.error('Failed to fetch user:', err);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
+  // Promise-chain zamiast async/await — setState tylko w callbackach,
+  // zeby wywolanie z efektu nie bylo synchronicznym setState (react-hooks/set-state-in-effect)
+  const fetchUser = useCallback((): Promise<void> => {
+    return fetch('/auth/me')
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json() as Promise<{ user: AuthUser | null }>;
+      })
+      .then((data) => {
+        setUser(data.user);
+      })
+      .catch((err: unknown) => {
+        console.error('Failed to fetch user:', err);
+        setUser(null);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
-    fetchUser();
+    void fetchUser();
   }, [fetchUser]);
 
   const logout = useCallback(async () => {

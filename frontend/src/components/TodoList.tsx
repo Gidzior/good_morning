@@ -30,7 +30,12 @@ function sortTasks(tasks: GoogleTask[]): GoogleTask[] {
 }
 
 export default function TodoList({ lists, tick, onRequestDeleteList }: TodoListProps) {
-  const [activeId, setActiveId] = useState<string | null>(lists[0]?.id ?? null);
+  // activeId jest pochodna (wybor uzytkownika + fallback na pierwsza liste) —
+  // bez efektu synchronizujacego (react-hooks/set-state-in-effect)
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const activeId = selectedId !== null && lists.some(l => l.id === selectedId)
+    ? selectedId
+    : lists[0]?.id ?? null;
   const [tasks, setTasks] = useState<GoogleTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
@@ -42,40 +47,41 @@ export default function TodoList({ lists, tick, onRequestDeleteList }: TodoListP
 
   const activeList = activeId ? lists.find(l => l.id === activeId) ?? null : null;
 
-  // Keep active id in sync as lists change
-  useEffect(() => {
-    if (lists.length === 0) {
-      if (activeId !== null) setActiveId(null);
-      return;
-    }
-    if (!activeId || !lists.some(l => l.id === activeId)) {
-      setActiveId(lists[0].id);
-    }
-  }, [lists, activeId]);
-
   const apiBase = activeId ? `/api/todo-lists/${encodeURIComponent(activeId)}/tasks` : null;
 
-  const loadTasks = useCallback(async () => {
-    if (!apiBase) { setTasks([]); setLoading(false); return; }
-    setLoading(true);
-    try {
-      const data = await apiFetch<{ items?: GoogleTask[] }>(apiBase);
-      setTasks(sortTasks(data.items ?? []));
-      setErrorMsg('');
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 403) {
-        setErrorMsg('Google Tasks niepołączone — przejdź do ustawień konta.');
-      } else {
-        console.error('Failed to load tasks:', err);
-        setErrorMsg('Nie udało się pobrać zadań');
-      }
-      setTasks([]);
-    } finally {
-      setLoading(false);
-    }
+  // Reset przy zmianie listy — wzorzec "adjust state during render" z docs Reacta,
+  // zamiast setState w efekcie: czysci stare zadania i pokazuje spinner dla nowej listy
+  const [prevApiBase, setPrevApiBase] = useState(apiBase);
+  if (prevApiBase !== apiBase) {
+    setPrevApiBase(apiBase);
+    setTasks([]);
+    setLoading(apiBase !== null);
+  }
+
+  // Promise-chain zamiast async/await — setState tylko w callbackach,
+  // zeby wywolanie z efektu nie bylo synchronicznym setState (react-hooks/set-state-in-effect)
+  const loadTasks = useCallback((): Promise<void> => {
+    if (!apiBase) return Promise.resolve();
+    return apiFetch<{ items?: GoogleTask[] }>(apiBase)
+      .then((data) => {
+        setTasks(sortTasks(data.items ?? []));
+        setErrorMsg('');
+      })
+      .catch((err: unknown) => {
+        if (err instanceof ApiError && err.status === 403) {
+          setErrorMsg('Google Tasks niepołączone — przejdź do ustawień konta.');
+        } else {
+          console.error('Failed to load tasks:', err);
+          setErrorMsg('Nie udało się pobrać zadań');
+        }
+        setTasks([]);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, [apiBase]);
 
-  useEffect(() => { loadTasks(); }, [loadTasks, tick]);
+  useEffect(() => { void loadTasks(); }, [loadTasks, tick]);
 
   const addTask = async () => {
     const title = draft.trim();
@@ -185,7 +191,7 @@ export default function TodoList({ lists, tick, onRequestDeleteList }: TodoListP
                       <button
                         key={l.id}
                         type="button"
-                        onClick={() => setActiveId(l.id)}
+                        onClick={() => setSelectedId(l.id)}
                         className={cn(
                           'whitespace-nowrap rounded-md border-none px-2.5 py-[5px] text-xs transition-colors',
                           isActive
