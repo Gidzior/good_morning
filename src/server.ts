@@ -151,6 +151,33 @@ async function cachedHistoryHandler(
   }
 }
 
+type ResolvedTasklist = { tasks: ReturnType<typeof google.tasks>; tasklistId: string };
+
+/**
+ * Wspolna preambula mutacji Google Tasks: lookup listy + oauth + klient.
+ * Pisze 4xx do res i zwraca null gdy brak listy lub tokenow.
+ */
+async function resolveTasklist(req: Request, res: express.Response): Promise<ResolvedTasklist | null> {
+  const lists = getTodoLists(userId(req));
+  const list = lists.find(l => l.id === req.params.id);
+  if (!list?.google_tasklist_id) {
+    res.status(400).json({ error: 'List not linked to Google Tasks' });
+    return null;
+  }
+  const oauth2Client = getOAuth2ClientForUser(userId(req));
+  if (!oauth2Client) {
+    res.status(401).json({ error: 'Google not connected' });
+    return null;
+  }
+  return { tasks: google.tasks({ version: 'v1', auth: oauth2Client }), tasklistId: list.google_tasklist_id };
+}
+
+/** Wspolny catch mutacji Google Tasks — log + 502 */
+function taskError(res: express.Response, label: string, e: unknown): void {
+  console.error(`${label}:`, errMsg(e));
+  res.status(502).json({ error: `Blad Google Tasks: ${errMsg(e)}` });
+}
+
 // Serve built React app
 app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
 
@@ -775,23 +802,17 @@ app.get('/api/todo-lists/:id/tasks', async (req, res) => {
 app.post('/api/todo-lists/:id/tasks', async (req, res) => {
   const { title } = req.body as { title: string };
   if (!title?.trim()) return res.status(400).json({ error: 'title required' });
-  const lists = getTodoLists(userId(req));
-  const list = lists.find(l => l.id === req.params.id);
-  if (!list?.google_tasklist_id) return res.status(400).json({ error: 'List not linked to Google Tasks' });
-
-  const oauth2Client = getOAuth2ClientForUser(userId(req));
-  if (!oauth2Client) return res.status(401).json({ error: 'Google not connected' });
+  const ctx = await resolveTasklist(req, res);
+  if (!ctx) return;
 
   try {
-    const tasksApi = google.tasks({ version: 'v1', auth: oauth2Client });
-    const response = await tasksApi.tasks.insert({
-      tasklist: list.google_tasklist_id,
+    const response = await ctx.tasks.tasks.insert({
+      tasklist: ctx.tasklistId,
       requestBody: { title: title.trim(), status: 'needsAction' },
     });
     res.json(response.data);
   } catch (e: unknown) {
-    console.error('Tasks create error:', errMsg(e));
-    res.status(500).json({ error: errMsg(e) });
+    taskError(res, 'Tasks create error', e);
   }
 });
 
@@ -800,17 +821,12 @@ app.patch('/api/todo-lists/:id/tasks/:taskId', async (req, res) => {
   if (!status || !['needsAction', 'completed'].includes(status)) {
     return res.status(400).json({ error: 'status must be needsAction or completed' });
   }
-  const lists = getTodoLists(userId(req));
-  const list = lists.find(l => l.id === req.params.id);
-  if (!list?.google_tasklist_id) return res.status(400).json({ error: 'List not linked' });
-
-  const oauth2Client = getOAuth2ClientForUser(userId(req));
-  if (!oauth2Client) return res.status(401).json({ error: 'Google not connected' });
+  const ctx = await resolveTasklist(req, res);
+  if (!ctx) return;
 
   try {
-    const tasksApi = google.tasks({ version: 'v1', auth: oauth2Client });
-    const response = await tasksApi.tasks.patch({
-      tasklist: list.google_tasklist_id,
+    const response = await ctx.tasks.tasks.patch({
+      tasklist: ctx.tasklistId,
       task: req.params.taskId,
       requestBody: {
         status,
@@ -819,49 +835,36 @@ app.patch('/api/todo-lists/:id/tasks/:taskId', async (req, res) => {
     });
     res.json(response.data);
   } catch (e: unknown) {
-    console.error('Tasks update error:', errMsg(e));
-    res.status(500).json({ error: errMsg(e) });
+    taskError(res, 'Tasks update error', e);
   }
 });
 
 app.post('/api/todo-lists/:id/tasks/:taskId/move', async (req, res) => {
   const { previousTaskId } = req.body as { previousTaskId: string | null };
-  const lists = getTodoLists(userId(req));
-  const list = lists.find(l => l.id === req.params.id);
-  if (!list?.google_tasklist_id) return res.status(400).json({ error: 'List not linked' });
-
-  const oauth2Client = getOAuth2ClientForUser(userId(req));
-  if (!oauth2Client) return res.status(401).json({ error: 'Google not connected' });
+  const ctx = await resolveTasklist(req, res);
+  if (!ctx) return;
 
   try {
-    const tasksApi = google.tasks({ version: 'v1', auth: oauth2Client });
-    const response = await tasksApi.tasks.move({
-      tasklist: list.google_tasklist_id,
+    const response = await ctx.tasks.tasks.move({
+      tasklist: ctx.tasklistId,
       task: req.params.taskId,
       previous: previousTaskId || undefined,
     });
     res.json(response.data);
   } catch (e: unknown) {
-    console.error('Tasks move error:', errMsg(e));
-    res.status(500).json({ error: errMsg(e) });
+    taskError(res, 'Tasks move error', e);
   }
 });
 
 app.delete('/api/todo-lists/:id/tasks/:taskId', async (req, res) => {
-  const lists = getTodoLists(userId(req));
-  const list = lists.find(l => l.id === req.params.id);
-  if (!list?.google_tasklist_id) return res.status(400).json({ error: 'List not linked' });
-
-  const oauth2Client = getOAuth2ClientForUser(userId(req));
-  if (!oauth2Client) return res.status(401).json({ error: 'Google not connected' });
+  const ctx = await resolveTasklist(req, res);
+  if (!ctx) return;
 
   try {
-    const tasksApi = google.tasks({ version: 'v1', auth: oauth2Client });
-    await tasksApi.tasks.delete({ tasklist: list.google_tasklist_id, task: req.params.taskId });
+    await ctx.tasks.tasks.delete({ tasklist: ctx.tasklistId, task: req.params.taskId });
     res.json({ ok: true });
   } catch (e: unknown) {
-    console.error('Tasks delete error:', errMsg(e));
-    res.status(500).json({ error: errMsg(e) });
+    taskError(res, 'Tasks delete error', e);
   }
 });
 
