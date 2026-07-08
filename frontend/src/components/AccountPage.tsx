@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { apiFetch, ApiError } from '@/lib/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -36,15 +37,15 @@ export default function AccountPage({ onBack, lastUpdate, countdown, onRefresh }
   const [calendars, setCalendars] = useState<GoogleCalendar[]>([]);
   const [enabledIds, setEnabledIds] = useState<Set<string>>(new Set());
   const [loadingCals, setLoadingCals] = useState(false);
+  const [calsError, setCalsError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const fetchCalendars = useCallback(async () => {
     setLoadingCals(true);
+    setCalsError(null);
     try {
-      const res = await fetch('/api/calendars');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json() as { calendars: GoogleCalendar[]; prefs: CalendarPref[] };
+      const data = await apiFetch<{ calendars: GoogleCalendar[]; prefs: CalendarPref[] }>('/api/calendars');
       setCalendars(data.calendars);
 
       if (data.prefs.length > 0) {
@@ -56,10 +57,16 @@ export default function AccountPage({ onBack, lastUpdate, countdown, onRefresh }
       }
     } catch (err) {
       console.error('Failed to fetch calendars:', err);
+      if (err instanceof ApiError && err.status === 403) {
+        // has_calendar bylo stale-true, a tokeny Google znikly — odswiez stan auth, sekcja sie schowa
+        await refresh();
+      } else {
+        setCalsError('Nie udało się pobrać listy kalendarzy');
+      }
     } finally {
       setLoadingCals(false);
     }
-  }, []);
+  }, [refresh]);
 
   useEffect(() => {
     if (user?.has_calendar) {
@@ -195,6 +202,8 @@ export default function AccountPage({ onBack, lastUpdate, countdown, onRefresh }
                     </div>
                     {loadingCals ? (
                       <Loading text="Ładowanie kalendarzy..." />
+                    ) : calsError ? (
+                      <div className="text-xs text-destructive">{calsError}</div>
                     ) : calendars.length === 0 ? (
                       <div className="text-xs text-muted-foreground">Brak kalendarzy</div>
                     ) : (
