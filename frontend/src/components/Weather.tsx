@@ -4,6 +4,7 @@ import Loading, { ErrorMsg } from './Loading';
 import SettingsModal from './SettingsModal';
 import Card from './DashboardCard';
 import { Input } from '@/components/ui/input';
+import { apiFetch } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -61,6 +62,7 @@ export default function Weather({ tick }: { tick: number }) {
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const loadCities = useCallback(() => {
@@ -108,26 +110,36 @@ export default function Weather({ tick }: { tick: number }) {
   };
 
   const addCity = async (c: SearchResult) => {
-    const r = await fetch('/api/user-cities', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lat: c.lat, lon: c.lon, name: c.name, country: c.country }),
-    });
-    if (!r.ok) { console.error('Failed to add city:', r.status); return; }
-    loadCities();
-    setQuery('');
-    setSearchResults([]);
+    setActionError(null);
+    try {
+      await apiFetch<{ ok: boolean }>('/api/user-cities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: c.lat, lon: c.lon, name: c.name, country: c.country }),
+      });
+      loadCities();
+      setQuery('');
+      setSearchResults([]);
+    } catch (err) {
+      console.error('Failed to add city:', err);
+      setActionError(`Nie udało się dodać miasta: ${err instanceof Error ? err.message : 'nieznany błąd'}`);
+    }
   };
 
   const removeCity = async (c: CityConfig) => {
-    const r = await fetch('/api/user-cities', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lat: c.lat, lon: c.lon }),
-    });
-    if (!r.ok) { console.error('Failed to remove city:', r.status); return; }
-    if (cityIdx >= cities.length - 1 && cityIdx > 0) setCityIdx(cityIdx - 1);
-    loadCities();
+    setActionError(null);
+    try {
+      await apiFetch<{ ok: boolean }>('/api/user-cities', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: c.lat, lon: c.lon }),
+      });
+      if (cityIdx >= cities.length - 1 && cityIdx > 0) setCityIdx(cityIdx - 1);
+      loadCities();
+    } catch (err) {
+      console.error('Failed to remove city:', err);
+      setActionError(`Nie udało się usunąć miasta: ${err instanceof Error ? err.message : 'nieznany błąd'}`);
+    }
   };
 
   const noKey = data?.current?.cod === 401;
@@ -313,6 +325,7 @@ export default function Weather({ tick }: { tick: number }) {
           className="mb-3"
           autoFocus
         />
+        {actionError && <div className="error-msg mb-3">{actionError}</div>}
         {searching && <p className="mb-2 text-xs text-muted-foreground">Szukam...</p>}
         {searchResults.length > 0 && (
           <div className="mb-4 max-h-40 overflow-y-auto rounded-lg border">

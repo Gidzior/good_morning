@@ -4,6 +4,7 @@ import type { RSSItem } from '../types';
 import Card from './DashboardCard';
 import Loading from './Loading';
 import { Input } from '@/components/ui/input';
+import { apiFetch } from '@/lib/api';
 import SettingsModal from './SettingsModal';
 import { RssIcon } from 'lucide-react';
 
@@ -37,6 +38,7 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
   const [newName, setNewName] = useState('');
   const [newCount, setNewCount] = useState(3);
   const [adding, setAdding] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (feeds.length === 0) { setArticles([]); setLoading(false); return; }
@@ -69,24 +71,33 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
 
   const handleAddFeed = async () => {
     if (!newUrl || !newName) return;
+    setActionError(null);
     setAdding(true);
     try {
-      const r = await fetch(`/api/rss-widgets/${widgetId}/feeds`, {
+      await apiFetch<RssFeedConfig>(`/api/rss-widgets/${widgetId}/feeds`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: newUrl, name: newName, articles_count: newCount }),
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setNewUrl(''); setNewName(''); setNewCount(3);
       onFeedsChanged();
-    } catch (err) { console.error('Failed to add RSS feed:', err); }
-    setAdding(false);
+    } catch (err) {
+      console.error('Failed to add RSS feed:', err);
+      setActionError(`Nie udało się dodać kanału: ${err instanceof Error ? err.message : 'nieznany błąd'}`);
+    } finally {
+      setAdding(false);
+    }
   };
 
   const handleRemoveFeed = async (feedId: string) => {
-    const r = await fetch(`/api/rss-widgets/${widgetId}/feeds/${feedId}`, { method: 'DELETE' });
-    if (!r.ok) { console.error('Failed to remove RSS feed:', r.status); return; }
-    onFeedsChanged();
+    setActionError(null);
+    try {
+      await apiFetch<{ ok: boolean }>(`/api/rss-widgets/${widgetId}/feeds/${feedId}`, { method: 'DELETE' });
+      onFeedsChanged();
+    } catch (err) {
+      console.error('Failed to remove RSS feed:', err);
+      setActionError(`Nie udało się usunąć kanału: ${err instanceof Error ? err.message : 'nieznany błąd'}`);
+    }
   };
 
   return (
@@ -116,6 +127,7 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
       )}
 
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} title={`Kanaly RSS — ${widgetName}`}>
+        {actionError && <div className="error-msg mb-3">{actionError}</div>}
         <div className="text-xs font-medium text-muted-foreground mb-2">Twoje kanały ({feeds.length}/5)</div>
         {feeds.length === 0 ? (
           <p className="text-sm text-muted-foreground mb-4">Brak — dodaj kanały poniżej</p>
