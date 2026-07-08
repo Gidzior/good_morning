@@ -42,8 +42,10 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    if (feeds.length === 0) { setArticles([]); setLoadError(false); setLoading(false); return; }
-    setLoading(true);
+    // Bez zadnego setState przed fetchem (react-hooks/set-state-in-effect):
+    // przy braku feedow render pokazuje "Brak kanalow" niezaleznie od articles/loading,
+    // a spinner dziala tylko do pierwszego zaladowania (bez migania przy tickach)
+    if (feeds.length === 0) return;
     type FeedResult = { ok: true; articles: Article[] } | { ok: false };
     Promise.all(
       feeds.map(async (feed): Promise<FeedResult> => {
@@ -112,12 +114,12 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
 
   return (
     <Card icon={<RssIcon />} title={widgetName} onSettings={() => setShowSettings(true)}>
-      {loading ? (
-        <Loading text="Ładowanie RSS..." />
-      ) : feeds.length === 0 ? (
+      {feeds.length === 0 ? (
         <div className="text-sm text-muted-foreground py-4 text-center">
           Brak kanalow RSS. Kliknij <button onClick={() => setShowSettings(true)} className="text-primary underline">⚙ ustawienia</button> zeby dodac.
         </div>
+      ) : loading ? (
+        <Loading text="Ładowanie RSS..." />
       ) : loadError ? (
         <ErrorMsg message="Nie udało się załadować danych — odśwież stronę" />
       ) : articles.length === 0 ? (
