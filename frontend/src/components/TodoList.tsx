@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Card from './DashboardCard';
 import Loading from './Loading';
-import ConfirmDialog from './ConfirmDialog';
 import { CheckIcon, PlusIcon, XIcon, Trash2Icon, ListTodoIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -19,7 +18,7 @@ export interface TodoListInfo {
 interface TodoListProps {
   lists: TodoListInfo[];
   tick: number;
-  onDeleteList?: (id: string) => Promise<void>;
+  onRequestDeleteList?: (target: { id: string; name: string }) => void;
 }
 
 /** Sort: needsAction first, completed second, preserve position order within each group */
@@ -29,14 +28,13 @@ function sortTasks(tasks: GoogleTask[]): GoogleTask[] {
   return [...active, ...done];
 }
 
-export default function TodoList({ lists, tick, onDeleteList }: TodoListProps) {
+export default function TodoList({ lists, tick, onRequestDeleteList }: TodoListProps) {
   const [activeId, setActiveId] = useState<string | null>(lists[0]?.id ?? null);
   const [tasks, setTasks] = useState<GoogleTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [draft, setDraft] = useState('');
   const [adding, setAdding] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
   const dragIdx = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragGhost = useRef<HTMLDivElement | null>(null);
@@ -170,8 +168,7 @@ export default function TodoList({ lists, tick, onDeleteList }: TodoListProps) {
   ) : null;
 
   return (
-    <>
-      <Card icon={<ListTodoIcon />} title="Zadania" action={meta}>
+    <Card icon={<ListTodoIcon />} title="Zadania" action={meta}>
       {lists.length === 0 ? (
         <div className="flex flex-1 items-center justify-center py-4 text-center text-sm text-[color:var(--ink-3)]">
           Brak list zadań — dodaj listę w panelu bocznym
@@ -208,10 +205,10 @@ export default function TodoList({ lists, tick, onDeleteList }: TodoListProps) {
                   </span>
                 </div>
               )}
-              {onDeleteList && (
+              {onRequestDeleteList && (
                 <button
                   type="button"
-                  onClick={() => setDeleteOpen(true)}
+                  onClick={() => onRequestDeleteList({ id: activeList.id, name: activeList.name })}
                   aria-label={`Usuń listę ${activeList.name}`}
                   title={`Usuń listę „${activeList.name}"`}
                   className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-[color:var(--ink-3)] transition-colors hover:bg-[color:var(--accent-soft)] hover:text-[color:var(--bad)]"
@@ -346,23 +343,6 @@ export default function TodoList({ lists, tick, onDeleteList }: TodoListProps) {
           )}
         </div>
       )}
-      </Card>
-
-      <ConfirmDialog
-        open={deleteOpen}
-        title="Usuń listę zadań"
-        description={activeList
-          ? `Lista "${activeList.name}" wraz z wszystkimi zadaniami zostanie trwale usunięta z Google Tasks.`
-          : ''}
-        confirmLabel="Usuń listę"
-        onConfirm={async () => {
-          if (activeList && onDeleteList) {
-            await onDeleteList(activeList.id);
-          }
-          setDeleteOpen(false);
-        }}
-        onCancel={() => setDeleteOpen(false)}
-      />
-    </>
+    </Card>
   );
 }

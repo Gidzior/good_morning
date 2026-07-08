@@ -6,11 +6,10 @@ import { useWidgetPrefs } from './hooks/useWidgetPrefs';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { apiFetch } from '@/lib/api';
 import { ErrorMsg } from './components/Loading';
+import { NameDialog } from './components/NameDialog';
+import ConfirmDialog from './components/ConfirmDialog';
 import AppSidebar from './components/AppSidebar';
 import DashboardHeader from './components/DashboardHeader';
 import DashboardGrid from './components/DashboardGrid';
@@ -79,9 +78,9 @@ function Dashboard() {
   }, []);
 
   const [rssDialogOpen, setRssDialogOpen] = useState(false);
-  const [rssName, setRssName] = useState('');
   const [todoDialogOpen, setTodoDialogOpen] = useState(false);
-  const [todoName, setTodoName] = useState('');
+  // Cel dialogu potwierdzenia usuniecia listy zadan (sidebar + widget TodoList)
+  const [deleteListTarget, setDeleteListTarget] = useState<{ id: string; name: string } | null>(null);
   // Blad mutacji w otwartym dialogu dodawania (RSS/todo) — czyszczony przy otwarciu i zmianie nazwy
   const [dialogError, setDialogError] = useState<string | null>(null);
   // Blad mutacji spoza dialogow dodawania (np. usuwanie listy zadan) — czyszczony przy nowej probie
@@ -136,27 +135,27 @@ function Dashboard() {
     }
   }, [loadTodoLists]);
 
-  const submitRssDialog = useCallback(async () => {
-    if (dialogSubmitting || !rssName.trim()) return;
+  const submitRssDialog = useCallback(async (name: string) => {
+    if (dialogSubmitting || !name.trim()) return;
     setDialogSubmitting(true);
     try {
-      const ok = await addRssWidget(rssName);
+      const ok = await addRssWidget(name);
       if (ok) setRssDialogOpen(false);
     } finally {
       setDialogSubmitting(false);
     }
-  }, [dialogSubmitting, rssName, addRssWidget]);
+  }, [dialogSubmitting, addRssWidget]);
 
-  const submitTodoDialog = useCallback(async () => {
-    if (dialogSubmitting || !todoName.trim()) return;
+  const submitTodoDialog = useCallback(async (name: string) => {
+    if (dialogSubmitting || !name.trim()) return;
     setDialogSubmitting(true);
     try {
-      const ok = await addTodoList(todoName);
+      const ok = await addTodoList(name);
       if (ok) setTodoDialogOpen(false);
     } finally {
       setDialogSubmitting(false);
     }
-  }, [dialogSubmitting, todoName, addTodoList]);
+  }, [dialogSubmitting, addTodoList]);
 
   const handleDisableWidget = useCallback(async (widgetId: string, deleteData: boolean) => {
     // Save widget's current layout before disabling
@@ -192,7 +191,7 @@ function Dashboard() {
             <TodoList
               lists={todoLists.map(t => ({ id: t.id, name: t.name }))}
               tick={tick}
-              onDeleteList={deleteTodoList}
+              onRequestDeleteList={setDeleteListTarget}
             />
           ),
         }]
@@ -202,7 +201,7 @@ function Dashboard() {
       node: <RSS key={w.id} widgetId={w.id} widgetName={w.name} feeds={w.feeds} tick={tick} onFeedsChanged={loadRssWidgets} />,
     }));
     return [...staticWidgets, ...todoEntries, ...rssEntries];
-  }, [tick, todoLists, rssWidgets, loadRssWidgets, deleteTodoList]);
+  }, [tick, todoLists, rssWidgets, loadRssWidgets]);
 
   // Filter to only enabled widgets
   const visibleWidgets = useMemo(
@@ -232,9 +231,9 @@ function Dashboard() {
           editMode={editMode}
           onToggleEdit={() => setEditMode(!editMode)}
           onResetLayout={resetLayout}
-          onAddRss={() => { setRssName(''); setDialogError(null); setRssDialogOpen(true); }}
-          onAddTodo={() => { setTodoName(''); setDialogError(null); setTodoDialogOpen(true); }}
-          onDeleteTodoList={deleteTodoList}
+          onAddRss={() => { setDialogError(null); setRssDialogOpen(true); }}
+          onAddTodo={() => { setDialogError(null); setTodoDialogOpen(true); }}
+          onRequestDeleteList={setDeleteListTarget}
           rssWidgets={rssWidgets.map(w => ({ id: w.id, name: w.name }))}
           todoWidgets={todoLists.map(t => ({ id: t.id, name: t.name }))}
           isWidgetEnabled={isEnabled}
@@ -257,58 +256,37 @@ function Dashboard() {
             )}
           </div>
         </SidebarInset>
-        <Dialog open={rssDialogOpen} onOpenChange={setRssDialogOpen}>
-          <DialogContent className="sm:max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Nowy widget RSS</DialogTitle>
-            </DialogHeader>
-            <Input
-              placeholder="Nazwa widgetu"
-              value={rssName}
-              onChange={(e) => { setRssName(e.target.value); setDialogError(null); }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void submitRssDialog();
-              }}
-              autoFocus
-            />
-            {dialogError && <ErrorMsg message={dialogError} />}
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setRssDialogOpen(false)}>Anuluj</Button>
-              <Button
-                disabled={!rssName.trim() || dialogSubmitting}
-                onClick={() => void submitRssDialog()}
-              >
-                Dodaj
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        <Dialog open={todoDialogOpen} onOpenChange={setTodoDialogOpen}>
-          <DialogContent className="sm:max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Nowa lista zadań</DialogTitle>
-            </DialogHeader>
-            <Input
-              placeholder="Nazwa listy"
-              value={todoName}
-              onChange={(e) => { setTodoName(e.target.value); setDialogError(null); }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void submitTodoDialog();
-              }}
-              autoFocus
-            />
-            {dialogError && <ErrorMsg message={dialogError} />}
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setTodoDialogOpen(false)}>Anuluj</Button>
-              <Button
-                disabled={!todoName.trim() || dialogSubmitting}
-                onClick={() => void submitTodoDialog()}
-              >
-                Dodaj
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <NameDialog
+          open={rssDialogOpen}
+          title="Nowy widget RSS"
+          placeholder="Nazwa widgetu"
+          submitting={dialogSubmitting}
+          error={dialogError}
+          onSubmit={(name) => void submitRssDialog(name)}
+          onClose={() => setRssDialogOpen(false)}
+        />
+        <NameDialog
+          open={todoDialogOpen}
+          title="Nowa lista zadań"
+          placeholder="Nazwa listy"
+          submitting={dialogSubmitting}
+          error={dialogError}
+          onSubmit={(name) => void submitTodoDialog(name)}
+          onClose={() => setTodoDialogOpen(false)}
+        />
+        <ConfirmDialog
+          open={deleteListTarget !== null}
+          title="Usuń listę zadań"
+          description={`Lista "${deleteListTarget?.name ?? ''}" wraz z wszystkimi zadaniami zostanie trwale usunięta z Google Tasks.`}
+          confirmLabel="Usuń listę"
+          onConfirm={async () => {
+            if (deleteListTarget) {
+              await deleteTodoList(deleteListTarget.id);
+            }
+            setDeleteListTarget(null);
+          }}
+          onCancel={() => setDeleteListTarget(null)}
+        />
       </SidebarProvider>
     </TooltipProvider>
   );
