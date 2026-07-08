@@ -16,9 +16,8 @@ import LoginPage from './components/LoginPage';
 import AccountPage from './components/AccountPage';
 import Weather from './components/Weather';
 import Calendar from './components/Calendar';
-import Crypto from './components/Crypto';
-import Currencies from './components/Currencies';
-import Stocks from './components/Stocks';
+import TickerWidget from './components/TickerWidget';
+import { CRYPTO_CONFIG, CURRENCIES_CONFIG, STOCKS_CONFIG } from './components/tickerConfigs';
 import RSS from './components/RSS';
 import type { RssFeedConfig } from './components/RSS';
 import Quote from './components/Quote';
@@ -133,9 +132,9 @@ function Dashboard() {
       { id: 'weather' as WidgetId, node: <Weather tick={tick} /> },
       { id: 'quote' as WidgetId, node: <Quote tick={tick} /> },
       { id: 'calendar' as WidgetId, node: <Calendar tick={tick} /> },
-      { id: 'crypto' as WidgetId, node: <Crypto tick={tick} /> },
-      { id: 'currencies' as WidgetId, node: <Currencies tick={tick} /> },
-      { id: 'stocks' as WidgetId, node: <Stocks tick={tick} /> },
+      { id: 'crypto' as WidgetId, node: <TickerWidget config={CRYPTO_CONFIG} tick={tick} /> },
+      { id: 'currencies' as WidgetId, node: <TickerWidget config={CURRENCIES_CONFIG} tick={tick} /> },
+      { id: 'stocks' as WidgetId, node: <TickerWidget config={STOCKS_CONFIG} tick={tick} /> },
     ];
     const todoEntries = todoLists.length > 0
       ? [{
