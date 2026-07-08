@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { timeAgo } from '../utils';
 import type { RSSItem } from '../types';
 import Card from './DashboardCard';
-import Loading from './Loading';
+import Loading, { ErrorMsg } from './Loading';
 import { Input } from '@/components/ui/input';
+import { apiFetch } from '@/lib/api';
 import SettingsModal from './SettingsModal';
 import { RssIcon } from 'lucide-react';
 
@@ -37,17 +38,18 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
   const [newName, setNewName] = useState('');
   const [newCount, setNewCount] = useState(3);
   const [adding, setAdding] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    if (feeds.length === 0) { setArticles([]); setLoading(false); return; }
+    if (feeds.length === 0) { setArticles([]); setLoadError(false); setLoading(false); return; }
     setLoading(true);
+    type FeedResult = { ok: true; articles: Article[] } | { ok: false };
     Promise.all(
-      feeds.map(async (feed) => {
+      feeds.map(async (feed): Promise<FeedResult> => {
         try {
-          const res = await fetch(`/api/rss?url=${encodeURIComponent(feed.url)}`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const data = await res.json();
-          return (data.items || [])
+          const data = await apiFetch<{ items?: RSSItem[] }>(`/api/rss?url=${encodeURIComponent(feed.url)}`);
+          const articles = (data.items || [])
             .slice(0, feed.articles_count)
             .map((item: RSSItem) => ({
               title: item.title || '',
@@ -55,38 +57,57 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
               pubDate: item.pubDate || item.isoDate || '',
               source: feed.name,
             }));
+          return { ok: true, articles };
         } catch (err) {
           console.error(`Failed to fetch RSS feed ${feed.name}:`, err);
-          return [];
+          return { ok: false };
         }
       })
     ).then(results => {
-      const all = results.flat().sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+      const all = results
+        .flatMap(r => (r.ok ? r.articles : []))
+        .sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
       setArticles(all);
+      // feeds.length > 0 (early return wyzej) — wszystkie feedy padly to glowny tryb awarii
+      setLoadError(results.every(r => !r.ok));
+      setLoading(false);
+    }).catch((err: unknown) => {
+      // defense-in-depth — per-feed catch nie powinien tu dopuscic
+      console.error('Failed to load RSS articles:', err);
+      setLoadError(true);
       setLoading(false);
     });
   }, [tick, feeds]);
 
   const handleAddFeed = async () => {
     if (!newUrl || !newName) return;
+    setActionError(null);
     setAdding(true);
     try {
-      const r = await fetch(`/api/rss-widgets/${widgetId}/feeds`, {
+      await apiFetch<RssFeedConfig>(`/api/rss-widgets/${widgetId}/feeds`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: newUrl, name: newName, articles_count: newCount }),
       });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setNewUrl(''); setNewName(''); setNewCount(3);
       onFeedsChanged();
-    } catch (err) { console.error('Failed to add RSS feed:', err); }
-    setAdding(false);
+    } catch (err) {
+      console.error('Failed to add RSS feed:', err);
+      setActionError(`Nie udało się dodać kanału: ${err instanceof Error ? err.message : 'nieznany błąd'}`);
+    } finally {
+      setAdding(false);
+    }
   };
 
   const handleRemoveFeed = async (feedId: string) => {
-    const r = await fetch(`/api/rss-widgets/${widgetId}/feeds/${feedId}`, { method: 'DELETE' });
-    if (!r.ok) { console.error('Failed to remove RSS feed:', r.status); return; }
-    onFeedsChanged();
+    setActionError(null);
+    try {
+      await apiFetch<{ ok: boolean }>(`/api/rss-widgets/${widgetId}/feeds/${feedId}`, { method: 'DELETE' });
+      onFeedsChanged();
+    } catch (err) {
+      console.error('Failed to remove RSS feed:', err);
+      setActionError(`Nie udało się usunąć kanału: ${err instanceof Error ? err.message : 'nieznany błąd'}`);
+    }
   };
 
   return (
@@ -97,12 +118,15 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
         <div className="text-sm text-muted-foreground py-4 text-center">
           Brak kanalow RSS. Kliknij <button onClick={() => setShowSettings(true)} className="text-primary underline">⚙ ustawienia</button> zeby dodac.
         </div>
+      ) : loadError ? (
+        <ErrorMsg message="Nie udało się załadować danych — odśwież stronę" />
       ) : articles.length === 0 ? (
         <div className="text-sm text-muted-foreground">Brak artykulow</div>
       ) : (
         <div className="space-y-3">
           {articles.map((a, i) => (
-            <div key={i} className="border-b border-border pb-2 last:border-0">
+            // indeks jako tiebreaker dla duplikatow link='#'; lista wymieniana atomowo per fetch
+            <div key={`${a.source}-${a.link}-${i}`} className="border-b border-border pb-2 last:border-0">
               <a href={a.link} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-foreground hover:text-primary transition-colors line-clamp-2">
                 {a.title}
               </a>
@@ -116,6 +140,7 @@ export default function RSS({ widgetId, widgetName, feeds, tick, onFeedsChanged 
       )}
 
       <SettingsModal open={showSettings} onClose={() => setShowSettings(false)} title={`Kanaly RSS — ${widgetName}`}>
+        {actionError && <div className="error-msg mb-3">{actionError}</div>}
         <div className="text-xs font-medium text-muted-foreground mb-2">Twoje kanały ({feeds.length}/5)</div>
         {feeds.length === 0 ? (
           <p className="text-sm text-muted-foreground mb-4">Brak — dodaj kanały poniżej</p>

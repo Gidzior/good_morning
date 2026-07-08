@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { BreakpointLayouts } from '../types';
+import { apiFetch } from '@/lib/api';
 
 interface WidgetPrefData {
   enabled: boolean;
@@ -31,30 +32,65 @@ export function useWidgetPrefs() {
 
   /** Re-enable widget. Returns saved layout per breakpoint if available. */
   const enableWidget = useCallback(async (widgetId: string): Promise<BreakpointLayouts | undefined> => {
-    setPrefs(prev => { const next = { ...prev }; delete next[widgetId]; return next; });
-    const r = await fetch(`/api/widget-prefs/${encodeURIComponent(widgetId)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: true }),
+    // Snapshot poprzedniego wpisu wewnatrz funkcyjnego updatera — rollback per-klucz,
+    // nie cofa rownoleglych zmian innych widgetow
+    let prevEntry: WidgetPrefData | undefined;
+    setPrefs(prev => {
+      prevEntry = prev[widgetId];
+      const next = { ...prev };
+      delete next[widgetId];
+      return next;
     });
-    if (!r.ok) { console.error('Failed to enable widget:', r.status); return undefined; }
-    const data = await r.json() as { savedLayout?: BreakpointLayouts };
-    return data.savedLayout;
+    try {
+      const data = await apiFetch<{ ok: boolean; savedLayout?: BreakpointLayouts }>(
+        `/api/widget-prefs/${encodeURIComponent(widgetId)}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: true }),
+        },
+      );
+      return data.savedLayout;
+    } catch (err) {
+      console.error('Failed to enable widget:', err);
+      setPrefs(prev => {
+        const next = { ...prev };
+        if (prevEntry === undefined) delete next[widgetId];
+        else next[widgetId] = prevEntry;
+        return next;
+      });
+      return undefined;
+    }
   }, []);
 
   /** Disable widget, optionally saving its current layout per breakpoint. */
   const disableWidget = useCallback(async (widgetId: string, opts?: DisableOptions) => {
-    setPrefs(prev => ({ ...prev, [widgetId]: { enabled: false } }));
-    const r = await fetch(`/api/widget-prefs/${encodeURIComponent(widgetId)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        enabled: false,
-        deleteData: opts?.deleteData ?? false,
-        savedLayout: opts?.savedLayout,
-      }),
+    // Snapshot poprzedniego wpisu wewnatrz funkcyjnego updatera — rollback per-klucz,
+    // nie cofa rownoleglych zmian innych widgetow
+    let prevEntry: WidgetPrefData | undefined;
+    setPrefs(prev => {
+      prevEntry = prev[widgetId];
+      return { ...prev, [widgetId]: { enabled: false } };
     });
-    if (!r.ok) console.error('Failed to disable widget:', r.status);
+    try {
+      await apiFetch<{ ok: boolean }>(`/api/widget-prefs/${encodeURIComponent(widgetId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: false,
+          deleteData: opts?.deleteData ?? false,
+          savedLayout: opts?.savedLayout,
+        }),
+      });
+    } catch (err) {
+      console.error('Failed to disable widget:', err);
+      setPrefs(prev => {
+        const next = { ...prev };
+        if (prevEntry === undefined) delete next[widgetId];
+        else next[widgetId] = prevEntry;
+        return next;
+      });
+    }
   }, []);
 
   return { prefs, loaded, isEnabled, enableWidget, disableWidget };

@@ -9,6 +9,8 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { apiFetch } from '@/lib/api';
+import { ErrorMsg } from './components/Loading';
 import AppSidebar from './components/AppSidebar';
 import DashboardHeader from './components/DashboardHeader';
 import DashboardGrid from './components/DashboardGrid';
@@ -80,34 +82,81 @@ function Dashboard() {
   const [rssName, setRssName] = useState('');
   const [todoDialogOpen, setTodoDialogOpen] = useState(false);
   const [todoName, setTodoName] = useState('');
+  // Blad mutacji w otwartym dialogu dodawania (RSS/todo) — czyszczony przy otwarciu i zmianie nazwy
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  // Blad mutacji spoza dialogow dodawania (np. usuwanie listy zadan) — czyszczony przy nowej probie
+  const [actionError, setActionError] = useState<string | null>(null);
+  // Guard in-flight dla dialogow dodawania — naraz otwarty jest jeden, wspolny stan wystarcza
+  const [dialogSubmitting, setDialogSubmitting] = useState(false);
 
-  const addRssWidget = useCallback(async (name: string) => {
-    if (!name.trim()) return;
-    const r = await fetch('/api/rss-widgets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim() }),
-    });
-    if (!r.ok) { console.error('Failed to add RSS widget:', r.status); return; }
-    loadRssWidgets();
+  const addRssWidget = useCallback(async (name: string): Promise<boolean> => {
+    if (!name.trim()) return false;
+    setDialogError(null);
+    try {
+      await apiFetch<unknown>('/api/rss-widgets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      loadRssWidgets();
+      return true;
+    } catch (err) {
+      console.error('Failed to add RSS widget:', err);
+      setDialogError(`Nie udało się dodać widgetu RSS: ${err instanceof Error ? err.message : 'nieznany błąd'}`);
+      return false;
+    }
   }, [loadRssWidgets]);
 
-  const addTodoList = useCallback(async (name: string) => {
-    if (!name.trim()) return;
-    const r = await fetch('/api/todo-lists', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim() }),
-    });
-    if (!r.ok) { console.error('Failed to add todo list:', r.status); return; }
-    loadTodoLists();
+  const addTodoList = useCallback(async (name: string): Promise<boolean> => {
+    if (!name.trim()) return false;
+    setDialogError(null);
+    try {
+      await apiFetch<unknown>('/api/todo-lists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      loadTodoLists();
+      return true;
+    } catch (err) {
+      console.error('Failed to add todo list:', err);
+      setDialogError(`Nie udało się dodać listy zadań: ${err instanceof Error ? err.message : 'nieznany błąd'}`);
+      return false;
+    }
   }, [loadTodoLists]);
 
   const deleteTodoList = useCallback(async (id: string) => {
-    const r = await fetch(`/api/todo-lists/${encodeURIComponent(id)}`, { method: 'DELETE' });
-    if (!r.ok) { console.error('Failed to delete todo list:', r.status); return; }
-    loadTodoLists();
+    setActionError(null);
+    try {
+      await apiFetch<{ ok: boolean }>(`/api/todo-lists/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      loadTodoLists();
+    } catch (err) {
+      console.error('Failed to delete todo list:', err);
+      setActionError(`Nie udało się usunąć listy zadań: ${err instanceof Error ? err.message : 'nieznany błąd'}`);
+    }
   }, [loadTodoLists]);
+
+  const submitRssDialog = useCallback(async () => {
+    if (dialogSubmitting || !rssName.trim()) return;
+    setDialogSubmitting(true);
+    try {
+      const ok = await addRssWidget(rssName);
+      if (ok) setRssDialogOpen(false);
+    } finally {
+      setDialogSubmitting(false);
+    }
+  }, [dialogSubmitting, rssName, addRssWidget]);
+
+  const submitTodoDialog = useCallback(async () => {
+    if (dialogSubmitting || !todoName.trim()) return;
+    setDialogSubmitting(true);
+    try {
+      const ok = await addTodoList(todoName);
+      if (ok) setTodoDialogOpen(false);
+    } finally {
+      setDialogSubmitting(false);
+    }
+  }, [dialogSubmitting, todoName, addTodoList]);
 
   const handleDisableWidget = useCallback(async (widgetId: string, deleteData: boolean) => {
     // Save widget's current layout before disabling
@@ -183,8 +232,8 @@ function Dashboard() {
           editMode={editMode}
           onToggleEdit={() => setEditMode(!editMode)}
           onResetLayout={resetLayout}
-          onAddRss={() => { setRssName(''); setRssDialogOpen(true); }}
-          onAddTodo={() => { setTodoName(''); setTodoDialogOpen(true); }}
+          onAddRss={() => { setRssName(''); setDialogError(null); setRssDialogOpen(true); }}
+          onAddTodo={() => { setTodoName(''); setDialogError(null); setTodoDialogOpen(true); }}
           onDeleteTodoList={deleteTodoList}
           rssWidgets={rssWidgets.map(w => ({ id: w.id, name: w.name }))}
           todoWidgets={todoLists.map(t => ({ id: t.id, name: t.name }))}
@@ -195,6 +244,7 @@ function Dashboard() {
         <SidebarInset>
           <DashboardHeader now={now} tick={tick} onAccount={() => setPage('account')} />
           <div className="p-6 max-sm:p-0">
+            {actionError && <div className="mb-3"><ErrorMsg message={actionError} /></div>}
             {loaded && rssLoaded && todoLoaded && prefsLoaded ? (
               <DashboardGrid
                 widgets={visibleWidgets}
@@ -215,20 +265,18 @@ function Dashboard() {
             <Input
               placeholder="Nazwa widgetu"
               value={rssName}
-              onChange={(e) => setRssName(e.target.value)}
+              onChange={(e) => { setRssName(e.target.value); setDialogError(null); }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && rssName.trim()) {
-                  addRssWidget(rssName);
-                  setRssDialogOpen(false);
-                }
+                if (e.key === 'Enter') void submitRssDialog();
               }}
               autoFocus
             />
+            {dialogError && <ErrorMsg message={dialogError} />}
             <DialogFooter>
               <Button variant="ghost" onClick={() => setRssDialogOpen(false)}>Anuluj</Button>
               <Button
-                disabled={!rssName.trim()}
-                onClick={() => { addRssWidget(rssName); setRssDialogOpen(false); }}
+                disabled={!rssName.trim() || dialogSubmitting}
+                onClick={() => void submitRssDialog()}
               >
                 Dodaj
               </Button>
@@ -243,20 +291,18 @@ function Dashboard() {
             <Input
               placeholder="Nazwa listy"
               value={todoName}
-              onChange={(e) => setTodoName(e.target.value)}
+              onChange={(e) => { setTodoName(e.target.value); setDialogError(null); }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && todoName.trim()) {
-                  addTodoList(todoName);
-                  setTodoDialogOpen(false);
-                }
+                if (e.key === 'Enter') void submitTodoDialog();
               }}
               autoFocus
             />
+            {dialogError && <ErrorMsg message={dialogError} />}
             <DialogFooter>
               <Button variant="ghost" onClick={() => setTodoDialogOpen(false)}>Anuluj</Button>
               <Button
-                disabled={!todoName.trim()}
-                onClick={() => { addTodoList(todoName); setTodoDialogOpen(false); }}
+                disabled={!todoName.trim() || dialogSubmitting}
+                onClick={() => void submitTodoDialog()}
               >
                 Dodaj
               </Button>

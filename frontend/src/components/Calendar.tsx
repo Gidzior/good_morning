@@ -102,18 +102,19 @@ export default function Calendar({ tick }: { tick: number }) {
       ) : loading ? (
         <Loading text="Ładowanie kalendarza..." />
       ) : (
-        days.map((day, i) => (
-          <div className="cal-day" key={i}>
+        days.map(day => (
+          <div className="cal-day" key={day.label}>
             <div className="cal-day-header">{day.label}</div>
-            {day.allDay.map((ev, j) => (
-              <div className="cal-allday-pill" key={`a${j}`}>
+            {day.allDay.map(ev => (
+              // to samo wydarzenie w dwoch kalendarzach ma to samo Google id — kolor rozroznia
+              <div className="cal-allday-pill" key={`${ev.id}-${ev.calendarColor}`}>
                 {ev.summary || '(bez tytułu)'}
               </div>
             ))}
             {day.allDay.length === 0 && day.timed.length === 0 ? (
               <div className="cal-empty">Brak wydarzeń</div>
             ) : (
-              day.timed.map((ev, j) => {
+              day.timed.map(ev => {
                 const status = day.isToday ? eventStatus(ev, new Date()) : 'future';
                 const time = `${formatTime(new Date(ev.start.dateTime!))} - ${formatTime(new Date(ev.end.dateTime!))}`;
                 const color = ev.calendarColor;
@@ -127,7 +128,7 @@ export default function Calendar({ tick }: { tick: number }) {
                 return (
                   <div
                     className={`cal-event cal-event-${status}`}
-                    key={j}
+                    key={`${ev.id}-${ev.calendarColor}`}
                     style={style}
                   >
                     <span className="time">{time}</span>
