@@ -24,8 +24,7 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
 
-    /* Path aliases */
-    "baseUrl": ".",
+    /* Path aliases — bez baseUrl (deprecated w TS 6): paths względne do tego pliku */
     "paths": {
       "@/*": ["./src/*"]
     }
