@@ -151,6 +151,49 @@ async function cachedHistoryHandler(
   }
 }
 
+/** Shared handler for cached list endpoints — try/cached/res.json/catch with per-endpoint error message */
+async function cachedListHandler<T>(
+  res: express.Response,
+  cacheKey: string,
+  ttl: number,
+  errorMessage: string,
+  fetcher: () => Promise<T>,
+): Promise<void> {
+  try {
+    res.json(await cached(cacheKey, ttl, fetcher));
+  } catch (e: unknown) {
+    console.error(`List error [${cacheKey}]:`, errMsg(e));
+    res.status(502).json({ error: errorMessage });
+  }
+}
+
+/**
+ * Rejestruje GET/POST/DELETE dla per-user listy (cities/cryptos/currencies/stocks).
+ * Walidacja i wywolania db.ts zostaja per-domena w closurach add/remove;
+ * add/remove zwracaja { error } (→ 400) albo null (→ { ok: true }).
+ */
+function registerUserListCrud(opts: {
+  path: string;                                                                   // np. '/api/user-cryptos'
+  list: (uid: string) => unknown;
+  add: (uid: string, body: Record<string, unknown>) => { error: string } | null;  // walidacja + insert; null = OK
+  removeRoute: string;                                                            // np. '/api/user-cryptos/:symbol' LUB path (cities: body)
+  remove: (uid: string, req: Request) => { error: string } | null;
+}): void {
+  app.get(opts.path, (req, res) => {
+    res.json(opts.list(userId(req)));
+  });
+  app.post(opts.path, (req, res) => {
+    const err = opts.add(userId(req), req.body as Record<string, unknown>);
+    if (err) return res.status(400).json(err);
+    res.json({ ok: true });
+  });
+  app.delete(opts.removeRoute, (req, res) => {
+    const err = opts.remove(userId(req), req);
+    if (err) return res.status(400).json(err);
+    res.json({ ok: true });
+  });
+}
+
 type ResolvedTasklist = { tasks: ReturnType<typeof google.tasks>; tasklistId: string };
 
 /**
@@ -240,22 +283,22 @@ app.get('/api/quote', async (_req, res) => {
 });
 
 // --- API: User cities CRUD ---
-app.get('/api/user-cities', (req, res) => {
-  res.json(getUserCities(userId(req)));
-});
-
-app.post('/api/user-cities', (req, res) => {
-  const { lat, lon, name, country } = req.body as { lat: number; lon: number; name: string; country: string };
-  if (!name || lat == null || lon == null) return res.status(400).json({ error: 'lat, lon, name required' });
-  addUserCity(userId(req), lat, lon, name, country || '');
-  res.json({ ok: true });
-});
-
-app.delete('/api/user-cities', (req, res) => {
-  const { lat, lon } = req.body as { lat: number; lon: number };
-  if (lat == null || lon == null) return res.status(400).json({ error: 'lat and lon required' });
-  deleteUserCity(userId(req), lat, lon);
-  res.json({ ok: true });
+registerUserListCrud({
+  path: '/api/user-cities',
+  list: getUserCities,
+  add: (uid, body) => {
+    const { lat, lon, name, country } = body as { lat: number; lon: number; name: string; country: string };
+    if (!name || lat == null || lon == null) return { error: 'lat, lon, name required' };
+    addUserCity(uid, lat, lon, name, country || '');
+    return null;
+  },
+  removeRoute: '/api/user-cities',
+  remove: (uid, req) => {
+    const { lat, lon } = req.body as { lat: number; lon: number };
+    if (lat == null || lon == null) return { error: 'lat and lon required' };
+    deleteUserCity(uid, lat, lon);
+    return null;
+  },
 });
 
 // --- API: City search (OpenWeatherMap geocoding) ---
@@ -395,37 +438,33 @@ app.get('/api/stock/:symbol/history', async (req, res) => {
 });
 
 // --- API: User cryptos CRUD ---
-app.get('/api/user-cryptos', (req, res) => {
-  res.json(getUserCryptos(userId(req)));
-});
-app.post('/api/user-cryptos', (req, res) => {
-  const { symbol, name } = req.body as { symbol: string; name: string };
-  if (!symbol || !name) return res.status(400).json({ error: 'symbol and name required' });
-  addUserCrypto(userId(req), symbol, name);
-  res.json({ ok: true });
-});
-app.delete('/api/user-cryptos/:symbol', (req, res) => {
-  deleteUserCrypto(userId(req), req.params.symbol);
-  res.json({ ok: true });
+registerUserListCrud({
+  path: '/api/user-cryptos',
+  list: getUserCryptos,
+  add: (uid, body) => {
+    const { symbol, name } = body as { symbol: string; name: string };
+    if (!symbol || !name) return { error: 'symbol and name required' };
+    addUserCrypto(uid, symbol, name);
+    return null;
+  },
+  removeRoute: '/api/user-cryptos/:symbol',
+  remove: (uid, req) => {
+    deleteUserCrypto(uid, req.params.symbol as string);
+    return null;
+  },
 });
 
 // --- API: Available Binance USDT spot pairs ---
 app.get('/api/cryptos/available', async (_req, res) => {
-  try {
-    const data = await cached('binance-usdt-pairs', THIRTY_MIN, async () => {
-      const r = await fetch('https://api.binance.com/api/v3/exchangeInfo');
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const j = await r.json() as { symbols: { symbol: string; baseAsset: string; quoteAsset: string; status: string; isSpotTradingAllowed: boolean }[] };
-      return (j.symbols || [])
-        .filter(s => s.quoteAsset === 'USDT' && s.status === 'TRADING' && s.isSpotTradingAllowed)
-        .map(s => ({ symbol: s.baseAsset, name: s.baseAsset }))
-        .sort((a, b) => a.symbol.localeCompare(b.symbol));
-    });
-    res.json(data);
-  } catch (e) {
-    console.error('Binance pairs error:', errMsg(e));
-    res.status(502).json({ error: 'Binance API unavailable' });
-  }
+  await cachedListHandler(res, 'binance-usdt-pairs', THIRTY_MIN, 'Binance API unavailable', async () => {
+    const r = await fetch('https://api.binance.com/api/v3/exchangeInfo');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json() as { symbols: { symbol: string; baseAsset: string; quoteAsset: string; status: string; isSpotTradingAllowed: boolean }[] };
+    return (j.symbols || [])
+      .filter(s => s.quoteAsset === 'USDT' && s.status === 'TRADING' && s.isSpotTradingAllowed)
+      .map(s => ({ symbol: s.baseAsset, name: s.baseAsset }))
+      .sort((a, b) => a.symbol.localeCompare(b.symbol));
+  });
 });
 
 // --- API: Crypto ticker from Binance (USDT) converted to PLN via NBP ---
@@ -471,33 +510,29 @@ app.get('/api/crypto/:symbol/history', async (req, res) => {
 });
 
 // --- API: User currencies CRUD ---
-app.get('/api/user-currencies', (req, res) => {
-  res.json(getUserCurrencies(userId(req)));
-});
-app.post('/api/user-currencies', (req, res) => {
-  const { code, name } = req.body as { code: string; name: string };
-  if (!code || !name) return res.status(400).json({ error: 'code and name required' });
-  addUserCurrency(userId(req), code, name);
-  res.json({ ok: true });
-});
-app.delete('/api/user-currencies/:code', (req, res) => {
-  deleteUserCurrency(userId(req), req.params.code);
-  res.json({ ok: true });
+registerUserListCrud({
+  path: '/api/user-currencies',
+  list: getUserCurrencies,
+  add: (uid, body) => {
+    const { code, name } = body as { code: string; name: string };
+    if (!code || !name) return { error: 'code and name required' };
+    addUserCurrency(uid, code, name);
+    return null;
+  },
+  removeRoute: '/api/user-currencies/:code',
+  remove: (uid, req) => {
+    deleteUserCurrency(uid, req.params.code as string);
+    return null;
+  },
 });
 
 // --- API: Available NBP currencies ---
 app.get('/api/currencies/available', async (_req, res) => {
-  try {
-    const data = await cached('nbp-currencies', THIRTY_MIN, async () => {
-      const r = await fetch('https://api.nbp.pl/api/exchangerates/tables/A/?format=json');
-      const j = await r.json() as { rates: { code: string; currency: string }[] }[];
-      return (j[0]?.rates || []).map(r => ({ code: r.code, name: r.currency }));
-    });
-    res.json(data);
-  } catch (e) {
-    console.error('NBP currencies error:', errMsg(e));
-    res.status(502).json({ error: 'NBP API unavailable' });
-  }
+  await cachedListHandler(res, 'nbp-currencies', THIRTY_MIN, 'NBP API unavailable', async () => {
+    const r = await fetch('https://api.nbp.pl/api/exchangerates/tables/A/?format=json');
+    const j = await r.json() as { rates: { code: string; currency: string }[] }[];
+    return (j[0]?.rates || []).map(r => ({ code: r.code, name: r.currency }));
+  });
 });
 
 // --- API: Single currency rate (NBP) ---
@@ -516,21 +551,20 @@ app.get('/api/currency/:code', async (req, res) => {
 });
 
 // --- API: User stocks CRUD ---
-app.get('/api/user-stocks', (req, res) => {
-  const stocks = getUserStocks(userId(req));
-  res.json(stocks);
-});
-
-app.post('/api/user-stocks', (req, res) => {
-  const { symbol, name } = req.body as { symbol: string; name: string };
-  if (!symbol || !name) return res.status(400).json({ error: 'symbol and name required' });
-  addUserStock(userId(req), symbol, name);
-  res.json({ ok: true });
-});
-
-app.delete('/api/user-stocks/:symbol', (req, res) => {
-  deleteUserStock(userId(req), req.params.symbol);
-  res.json({ ok: true });
+registerUserListCrud({
+  path: '/api/user-stocks',
+  list: getUserStocks,
+  add: (uid, body) => {
+    const { symbol, name } = body as { symbol: string; name: string };
+    if (!symbol || !name) return { error: 'symbol and name required' };
+    addUserStock(uid, symbol, name);
+    return null;
+  },
+  removeRoute: '/api/user-stocks/:symbol',
+  remove: (uid, req) => {
+    deleteUserStock(uid, req.params.symbol as string);
+    return null;
+  },
 });
 
 // --- API: Stock search (Yahoo Finance) ---
