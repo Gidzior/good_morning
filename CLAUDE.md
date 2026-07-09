@@ -44,9 +44,18 @@ Vite proxies `/api` → `http://localhost:3001` in dev mode.
 npm run dev:backend    # Express dev server
 npm run dev:frontend   # Vite dev server
 npm run build          # tsc + vite build
-npm run lint           # ESLint + typecheck (cd frontend && npm run lint)
+npm run lint           # typecheck e2e (tsc -p e2e) + ESLint frontend
+npm run test:e2e       # Playwright e2e (wymaga zbudowanego frontend/dist)
 ```
-Przed commitem: `lint && build` musza przejsc.
+Przed commitem: `lint && build` musza przejsc; przy zmianach w routingu/auth/widgetach takze `test:e2e`.
+
+## Testy e2e (Playwright)
+- `playwright.config.ts` + `e2e/` — chromium, workers: 1, wlasny backend na porcie 3102
+- Izolacja: `e2e/start-server.ts` kasuje i seeduje osobna baze `e2e/.tmp/e2e.db` (env `DB_PATH`, `PORT`) — dev serwer (3001) nietkniety
+- Logowanie: `/auth/dev-login` (seed tworzy usera) — helpery `devLogin(page)` / `apiLogin(request)` w `e2e/helpers.ts`
+- Rate limity: env `AUTH_RATE_LIMIT` / `API_RATE_LIMIT` (config ustawia 1000/5000 — sekwencyjne testy z jednego IP przekraczaja domyslne 10 i 300 req/min)
+- Filozofia: asercje STRUKTURY, nie danych — zewnetrzne API (Zonda, NBP, Yahoo, OpenWeatherMap) sa proxowane server-side i niemockowalne z przegladarki; widget ma renderowac dane LUB czytelny blad, nigdy pusty crash
+- Google Tasks/Calendar: bez testow (wymagaja realnych tokenow OAuth)
 
 ## Architecture
 - `/src/server.ts` — backend Express, proxy API + calendar/layout endpoints
@@ -111,7 +120,7 @@ Przed commitem: `lint && build` musza przejsc.
 ## Dev cycle (Dev AI Agents)
 - Audyt/refactor: `/pathfinder` → `/make-plan` (handoff z PATHFINDER-*/04) → `/do` → code review → merge
 - Code review: subagent `code-reviewer` (.claude/agents/code-reviewer.md) na diffie main...HEAD, przed commitem/merge
-- CI: GitHub Actions (.github/workflows/ci.yml) — lint + build na push do main i na PR
+- CI: GitHub Actions (.github/workflows/ci.yml) — joby lint-build + e2e (Playwright) na push do main i na PR
 - Poczatek sesji: `/mem-search` gdy temat mogl byc juz rozwiazany wczesniej
 
 ## Production Deployment Plan (TODO)

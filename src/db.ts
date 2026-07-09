@@ -2,7 +2,8 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
-const DB_PATH = path.join(__dirname, '..', 'data', 'dashboard.db');
+// DB_PATH z env — testy e2e wskazuja wlasny plik, zeby nie ruszac dev DB
+const DB_PATH = process.env.DB_PATH ?? path.join(__dirname, '..', 'data', 'dashboard.db');
 
 // Ensure data directory exists
 import fs from 'fs';
