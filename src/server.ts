@@ -20,7 +20,8 @@ function errMsg(e: unknown): string {
 }
 
 const app = express();
-const PORT = 3001;
+// PORT z env — testy e2e startuja wlasna instancje na innym porcie
+const PORT = Number(process.env.PORT) || 3001;
 const rssParser = new RSSParser();
 
 app.use(cookieParser());
@@ -33,9 +34,10 @@ app.use((req, _res, next) => {
 });
 
 // --- Rate limiting ---
+// AUTH_RATE_LIMIT z env — testy e2e robia wiele dev-loginow w ciagu minuty
 const authLimiter = rateLimit({
   windowMs: 60 * 1000,    // 1 minute
-  max: 10,                 // 10 requests per minute
+  max: Number(process.env.AUTH_RATE_LIMIT) || 10, // 10 requests per minute
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Zbyt wiele prob logowania. Sprobuj za minute.' },
@@ -43,7 +45,7 @@ const authLimiter = rateLimit({
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,    // 1 minute
-  max: 300,                // 300 requests per minute (dashboard loads ~40-60 parallel requests)
+  max: Number(process.env.API_RATE_LIMIT) || 300, // 300 requests per minute (dashboard loads ~40-60 parallel requests)
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Zbyt wiele zapytan. Sprobuj za minute.' },
